@@ -54,8 +54,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,4,1,1
- PRODUCTVERSION 0,4,1,1
+ FILEVERSION 0,5,1,1
+ PRODUCTVERSION 0,5,1,1
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -73,14 +73,14 @@ BEGIN
             VALUE "Comments", "http://corecodec.org/projects/vfre/\0"
             VALUE "CompanyName", "\0"
             VALUE "FileDescription", "CorePNG VFW Codec\0"
-            VALUE "FileVersion", "0, 4, 1, 1\0"
+            VALUE "FileVersion", "0, 5, 1, 1\0"
             VALUE "InternalName", "CorePNG\0"
             VALUE "LegalCopyright", "Copyright © 2003 Jory Stone\0"
             VALUE "LegalTrademarks", "\0"
             VALUE "OriginalFilename", "CorePNG_vfw.rc\0"
             VALUE "PrivateBuild", "\0"
             VALUE "ProductName", "CorePNG VFW Codec\0"
-            VALUE "ProductVersion", "0, 4, 1, 1\0"
+            VALUE "ProductVersion", "0, 5, 1, 1\0"
             VALUE "SpecialBuild", "\0"
         END
     END
@@ -135,6 +135,11 @@ BEGIN
                     BS_AUTOCHECKBOX | WS_TABSTOP,60,120,43,10
     CONTROL         "None Filter",IDC_CHECK_PNG_FILTER_NONE,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,60,96,50,10
+    RTEXT           "Keyframe Interval :",IDC_STATIC,100,71,64,8
+    EDITTEXT        IDC_EDIT_KEYFRAME_INTERVAL,167,68,37,14,ES_AUTOHSCROLL
+    CONTROL         "Spin1",IDC_SPIN_KEYFRAME_INTERVAL,"msctls_updown32",
+                    UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | 
+                    UDS_ARROWKEYS,208,68,9,14
 END
 
 

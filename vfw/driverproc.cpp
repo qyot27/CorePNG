@@ -107,7 +107,7 @@ extern "C" __declspec(dllexport) LRESULT WINAPI DriverProc(DWORD dwDriverId, HDR
 			icinfo->dwVersionICM = ICVERSION;
 			
 			wcscpy(icinfo->szName, L"CorePNG"); 
-			wcscpy(icinfo->szDescription, L"CorePNG Video Codec v0.4");
+			wcscpy(icinfo->szDescription, L"CorePNG Video Codec v0.5");
 						
 			return lParam2;
 		}
@@ -118,7 +118,7 @@ extern "C" __declspec(dllexport) LRESULT WINAPI DriverProc(DWORD dwDriverId, HDR
 	// configure box, so just return ok.
 	case ICM_ABOUT :
 		if (lParam1 != -1) {
-			MessageBox((HWND)lParam1, "CorePNG was developed by Jory Stone <vbman@toughguy.net>\nAs a test codec for image subtitles. But as it can be used for other things.", "About CorePNG", MB_ICONINFORMATION);
+			MessageBox((HWND)lParam1, "CorePNG was developed by Jory Stone <vbman@toughguy.net>\nAs a test codec for image subtitles. But as it can be used for other things.\nTimestamp: " __DATE__ " " __TIME__, "About CorePNG", MB_ICONINFORMATION);
 		}
 		return ICERR_OK;
 	case ICM_CONFIGURE :

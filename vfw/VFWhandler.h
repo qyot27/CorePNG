@@ -34,6 +34,7 @@ struct CorePNGCodecSettings {
 	BYTE m_PNGFilters;
 	DWORD m_DropFrameThreshold;
 	BYTE m_DeltaFramesEnabled;
+	WORD m_DeltaFrameLimit;
 };
 
 class VFWhandler : public CorePNGCodecSettings
@@ -82,7 +83,7 @@ protected:
 	//BYTE m_PNGFilters;
 	bool m_DecodeToRGB24;
 	//DWORD m_DropFrameThreshold;
-	WORD m_DeltaFrameCount;
+	WORD m_DeltaFrameCount;	
 	//bool m_DeltaFramesEnabled;
 };
 

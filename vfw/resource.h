@@ -18,6 +18,8 @@
 #define IDC_CHECK_PNG_ALL_FILTERS       1021
 #define IDC_CHECK_PNG_NO_FILTERS        1022
 #define IDC_CHECK_PNG_FILTER_NONE       1023
+#define IDC_EDIT_KEYFRAME_INTERVAL      1025
+#define IDC_SPIN_KEYFRAME_INTERVAL      1026
 
 // Next default values for new objects
 // 
@@ -25,7 +27,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        103
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1024
+#define _APS_NEXT_CONTROL_VALUE         1027
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

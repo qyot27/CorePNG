@@ -24,6 +24,7 @@ VFWhandler::~VFWhandler(void)
 }
 
 void VFWhandler::LoadSettings() {
+	m_DeltaFrameLimit = CorePNG_GetRegistryValue("Keyframe Interval", 2);
 	m_ZlibCompressionLevel = CorePNG_GetRegistryValue("zlib Compression Level", 6);
 	m_PNGFilters = CorePNG_GetRegistryValue("PNG Filters", PNG_ALL_FILTERS);
 	m_DeltaFramesEnabled = CorePNG_GetRegistryValue("Use Delta Frames", 0);
@@ -32,6 +33,7 @@ void VFWhandler::LoadSettings() {
 }
 
 void VFWhandler::SaveSettings() {
+	CorePNG_SetRegistryValue("Keyframe Interval", m_DeltaFrameLimit);
 	CorePNG_SetRegistryValue("zlib Compression Level", m_ZlibCompressionLevel);
 	CorePNG_SetRegistryValue("PNG Filters", m_PNGFilters);
 	CorePNG_SetRegistryValue("Use Delta Frames", m_DeltaFramesEnabled);
@@ -117,19 +119,26 @@ int VFWhandler::VFW_compress(ICCOMPRESS* lParam1, DWORD lParam2)
 			// Compare to the previous frame
 			RGBQUAD previousPixel;
 			RGBQUAD currentPixel;
-			for (DWORD y = 0; y < m_Image.GetHeight(); y++) {
+			//m_Image.Draw(GetDC(NULL));
+			//m_DeltaFrame.Draw(GetDC(NULL));
+			m_Image.Mix(m_DeltaFrame, CxImage::ImageOpType::OpSub2);
+			//m_Image.Draw(GetDC(NULL));
+			/*for (DWORD y = 0; y < m_Image.GetHeight(); y++) {
 				for (DWORD x = 0; x < m_Image.GetWidth(); x++) {
 					currentPixel = m_Image.GetPixelColor(x, y);
 					previousPixel = m_DeltaFrame.GetPixelColor(x, y);
 					if (!memcmp(&currentPixel, &previousPixel, sizeof(RGBQUAD))) {
 						// Matching pixels
-						// Average pixels						
-						m_Image.SetPixelColor(x, y, AveragePixels(x ,y), true);		
+						// Average pixels		
+						memset(&currentPixel, 0, sizeof(RGBQUAD));
+						m_Image.SetPixelColor(x, y, currentPixel, true);		
 						//m_Image.AlphaSet(x, y, 0);
 					}
 				}
-			}
-			if (m_DeltaFrameCount++ > 0)
+			}*/
+			// Replace the delta frame with the full frame
+			memcpy(m_DeltaFrame.GetBits(), lParam1->lpInput, lActual);
+			if (m_DeltaFrameCount++ > m_DeltaFrameLimit)
 				m_DeltaFrameCount = 0;
 			
 		} else {
@@ -293,9 +302,19 @@ int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 
 	DWORD lActual = lParam1->lpbiInput->biSizeImage;
 
+	// Preserve the previous frame
+	if (lParam1->dwFlags == ICDECOMPRESS_NOTKEYFRAME) {
+		m_DeltaFrame = m_Image;
+	}
+
 	// Now decompress the frame.
 	CxMemFile memFile((BYTE *)lParam1->lpInput, lActual);
 	m_Image.Decode(&memFile);		
+	if (lParam1->dwFlags == ICDECOMPRESS_NOTKEYFRAME) {
+		// Mix the old image and the new image together
+		m_DeltaFrame.Mix(m_Image, CxImage::ImageOpType::OpAdd2);
+		m_Image = m_DeltaFrame;
+	}
 
 	//lParam1->lpbiOutput->biSizeImage = lParam1->lpbiInput->biWidth * lParam1->lpbiInput->biHeight * (lParam1->lpbiInput->biBitCount / 8);
 
@@ -567,7 +586,10 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 
 			CheckDlgButton(hwndDlg, IDC_CHECK_DECODE_RGB24, m_DecodeToRGB24);
 			CheckDlgButton(hwndDlg, IDC_CHECK_DELTA_FRAMES, m_DeltaFramesEnabled);
-			
+						
+			SendDlgItemMessage(hwndDlg,	IDC_SPIN_KEYFRAME_INTERVAL, UDM_SETRANGE, 0, (LPARAM)MAKELONG(1000, 1));
+			SendDlgItemMessage(hwndDlg,	IDC_SPIN_KEYFRAME_INTERVAL, UDM_SETPOS, 0, m_DeltaFrameLimit+1);
+
 			SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_SETRANGE, 0, (LPARAM)MAKELONG(UD_MAXVAL, 0));
 			SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_SETPOS, 0, m_DropFrameThreshold);
 
@@ -633,6 +655,7 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 					m_DecodeToRGB24 = IsDlgButtonChecked(hwndDlg, IDC_CHECK_DECODE_RGB24);
 					m_DeltaFramesEnabled = IsDlgButtonChecked(hwndDlg, IDC_CHECK_DELTA_FRAMES);
 					m_DropFrameThreshold = SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_GETPOS, 0, 0);
+					m_DeltaFrameLimit = SendDlgItemMessage(hwndDlg,	IDC_SPIN_KEYFRAME_INTERVAL, UDM_GETPOS, 0, 0)-1;
 					
 					SaveSettings();
 
