@@ -24,8 +24,7 @@ extern HINSTANCE g_hInst;
 
 bool VFWhandler::CreateYUY2(BITMAPINFOHEADER* input)
 {
-	m_Height = input->biHeight;
-	m_HeightDouble = m_Height * 2;
+	m_Height = input->biHeight;	
 	m_Width = input->biWidth;
 	
 	Y_Channel.Create(m_Width, m_Height, 8);
@@ -50,7 +49,7 @@ void VFWhandler::CompressYUY2KeyFrame(BYTE *inputYUV2Data, CxMemFile *targetBuff
 	BYTE *U_data = (BYTE *)U_Channel.GetBits();
 	BYTE *V_data = (BYTE *)V_Channel.GetBits();
 
-	for (DWORD height = 0; height < m_HeightDouble; height++) {
+	for (DWORD height = 0; height < m_Height*2; height++) {
 		for (DWORD width = 0; width < m_Width; width += 4) {
 			Y_data++[0] = inputYUV2Data[width+0];
 			U_data++[0] = inputYUV2Data[width+1];
@@ -88,7 +87,7 @@ void VFWhandler::CompressYUY2DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBu
 	BYTE *V_Delta_data = (BYTE *)V_Channel_Delta.GetBits();
 	
 	// Copy and Compare to the previous frame
-	for (DWORD height = 0; height < m_HeightDouble; height++) {
+	for (DWORD height = 0; height < m_Height*2; height++) {
 		for (DWORD width = 0; width < m_Width; width += 4) {
 			Y_data++[0] = inputYUV2Data[width+0] - Y_Delta_data[0];
 			Y_Delta_data++[0] = inputYUV2Data[width+0];
@@ -121,7 +120,6 @@ void VFWhandler::CompressYUY2DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBu
 bool VFWhandler::CreateYV12(BITMAPINFOHEADER* input)
 {
 	m_Height = input->biHeight;
-	m_HeightDouble = m_Height * 2;
 	m_Width = input->biWidth;
 	
 	Y_Channel.Create(m_Width, m_Height, 8);
@@ -1265,15 +1263,15 @@ int VFWhandler::DecompressYUY2Frame(ICDECOMPRESS* lParam1)
 			outputYUV2Data += width;
 		}		
 
-		// Using alexnoe's YUV2->RGB32 Assembly rountines
+		// Using alexnoe's YUV2->RGB24 Assembly rountines
 		int stride = lParam1->lpbiOutput->biWidth * 2;				
-		YUV422toRGB_MMX(m_DecodeBuffer.GetBuffer(), lParam1->lpOutput, 0, lParam1->lpbiOutput->biWidth, lParam1->lpbiOutput->biHeight, stride, stride * 2);
+		YUV422toRGB24_MMX(m_DecodeBuffer.GetBuffer(), lParam1->lpOutput, 0, lParam1->lpbiOutput->biWidth, lParam1->lpbiOutput->biHeight, stride, lParam1->lpbiOutput->biWidth * 3);
 		
-		CxImage test(m_Image, true);
+		/*CxImage test(m_Image, true);
 		test.CreateFromARGB(lParam1->lpbiOutput->biWidth, lParam1->lpbiOutput->biHeight, (BYTE *)lParam1->lpOutput);
 
 		memcpy(lParam1->lpOutput, test.GetBits(), lParam1->lpbiOutput->biSizeImage);
-
+*/
 	} else {
 		return ICERR_UNSUPPORTED;
 	}

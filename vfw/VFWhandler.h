@@ -43,6 +43,7 @@
 extern "C" {
 //Declare for assembly YUV2->RGB32 conversion
 void _stdcall YUV422toRGB_MMX(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch);
+void _stdcall YUV422toRGB24_MMX(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch);
 //I don't use these, but it's nice to have the declares
 void _stdcall RGBtoYCrCb_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch); 
 void _stdcall RGBtoYUV422_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch); 
@@ -314,7 +315,6 @@ protected:
 	CxMemFile m_DecodeBuffer;	
 
 	DWORD m_Height;
-	DWORD m_HeightDouble;
 	DWORD m_Width;
 	CxImagePNG Y_Channel;		
 	CxImagePNG U_Channel;		

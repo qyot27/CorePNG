@@ -448,6 +448,133 @@ YUV422toRGB_MMX proc dwIn,dwOut,dwFlags,dwWidth,dwHeight,dwSPitch,dwDPitch
   ret
 YUV422toRGB_MMX endp
 
+YUV422toRGB24_MMX proc dwIn,dwOut,dwFlags,dwWidth,dwHeight,dwSPitch,dwDPitch
+  pushad
+  mov          esi, dwIn
+  mov          edi, dwOut
+  mov          ebx, dwHeight
+
+@next_line:
+  mov          ecx, dwWidth
+  shr          ecx, 1
+  push         esi
+  push         edi
+@next_pixels:
+
+  pxor         mm7, mm7
+  movd         mm0, [esi]
+  add          esi, 4
+@shift:
+  ; noch nichts
+
+
+  punpcklbw    mm0, mm7
+  lea          edx, _get_DEF
+  movq         mm1, [edx]
+  paddw        mm0, mm1
+  movq         mm1, mm0
+
+  lea          edx, _get_line1
+  lea          eax, _get_line2
+  movq         mm5, [edx]
+  movq         mm6, [eax]
+
+  movq         mm2, mm0
+  movq         mm3, mm1
+  pmullw       mm0, mm5
+  pmullw       mm1, mm6
+
+  pmulhw       mm2, mm5
+  pmulhw       mm3, mm6
+
+  movq         mm4, mm0
+  movq         mm7, mm1
+  punpcklwd    mm0, mm2
+  punpcklwd    mm1, mm3
+  punpckhwd    mm4, mm2
+  punpckhwd    mm7, mm3
+  packssdw     mm0, mm4
+  packssdw     mm1, mm7
+
+  movq         mm2, mm0
+  psrlq        mm2, 32
+
+  psrlq        mm1, 16
+  lea          edx, _pack_l2m
+  pand         mm1, [edx]
+  movq         mm3, mm1
+  psrlq        mm3, 16
+  por          mm1, mm3
+
+; MM0:  0/0  0/1
+; MM1:  1/1  1/3
+; MM2:  0/2  0/3
+; MM3:  0/0  0/1
+  movq         mm3, mm0
+  pxor         mm7, mm7
+  psubsw       mm7, mm1
+  paddsw       mm1, mm0
+  psrlq        mm1, 16
+  movq         mm6, mm2
+  psubsw       mm0, mm7
+  psubsw       mm6, mm7
+
+; mm0, mm6: B1, B2
+; mm1: GT
+  movq         mm4, mm2
+  psrlq        mm2, 16
+
+; mm2: Add_R
+; mm3, mm4: 0/0  0/2
+  movq         mm5, mm3
+  movq         mm7, mm4
+
+  psubsw      mm3, mm1  ; G1
+  psubsw      mm4, mm1  ; G2
+  paddsw      mm5, mm2  ; R1
+  paddsw      mm7, mm2  ; R2
+
+  punpcklwd    mm0, mm3
+  punpcklwd    mm6, mm4
+  punpckldq    mm0, mm5
+  punpckldq    mm6, mm7
+  lea          edx, _final_add
+  paddw        mm0, [edx]
+  paddw        mm6, [edx]
+  lea          edx, _final_sub
+  psubusw      mm0, [edx]
+  psubusw      mm6, [edx]
+
+  psrlw        mm0, 6
+  psrlw        mm6, 6
+
+  packuswb     mm0, mm0
+  movd         edx, mm0
+  and          edx, 0FFFFFFh
+  mov          [edi], edx
+  packuswb     mm6, mm6
+  movd         edx, mm6
+  and          edx, 0FFFFFFh
+  ;mov          [edi+4], edx
+  ;add          edi, 8
+  mov  [edi+3], edx
+  add  edi, 6
+
+  dec          ecx
+  jnz          @next_pixels
+
+  pop          edi
+  pop          esi
+  add          edi, dwDPitch
+  add          esi, dwSPitch
+
+  dec          ebx
+  jnz          @next_line
+  popad
+  emms
+  ret
+YUV422toRGB24_MMX endp
+
 _DATA ends
 
 END
