@@ -2045,6 +2045,11 @@ BOOL VFWhandler::AboutDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 
 			break;
 		}
+		case WM_CLOSE:
+		{
+			EndDialog(hwndDlg, IDCANCEL);
+			break;
+		}
 		case WM_COMMAND:
 			// Process button
 			switch (LOWORD(wParam))
@@ -2167,6 +2172,11 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 
 			break;
 		}
+		case WM_CLOSE:
+		{
+			EndDialog(hwndDlg, IDCANCEL);
+			break;
+		}
 		case WM_COMMAND:
 			// Process button
 			switch (LOWORD(wParam))
@@ -2245,10 +2255,7 @@ BOOL VFWhandler::StatusDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
   {
 		case WM_INITDIALOG:
 		{
-			INITCOMMONCONTROLSEX common;			
-			common.dwICC = ICC_WIN95_CLASSES; 
-			common.dwSize = sizeof(common);
-			InitCommonControlsEx(&common);
+
 
 			// Create the tooltip control
 			DWORD balloonTips = 0;
@@ -2327,6 +2334,11 @@ BOOL VFWhandler::StatusDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 			KillTimer(hwndDlg, 555);
 			break;
 		}
+		case WM_CLOSE:
+		{
+			EndDialog(hwndDlg, IDCANCEL);
+			break;
+		}
 		case WM_HSCROLL:
 		{
 			BYTE bPos = SendMessage((HWND)lParam, TBM_GETPOS, 0, 0);
@@ -2345,7 +2357,6 @@ BOOL VFWhandler::StatusDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 				if (pSetLayeredWindowAttributes != NULL)
 					pSetLayeredWindowAttributes(hwndDlg, 0, (255 * bPos) / 100, LWA_ALPHA);
 			}
-			
 			break;
 		}
 		case WM_TIMER:

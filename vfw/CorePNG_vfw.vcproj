@@ -27,7 +27,16 @@
 				UsePrecompiledHeader="0"
 				WarningLevel="4"
 				Detect64BitPortabilityProblems="TRUE"
-				DebugInformationFormat="4"/>
+				DebugInformationFormat="4"
+				AdditionalOptions="">
+				<IntelOptions
+					Optimization="0"
+					MinimalRebuild="1"
+					BasicRuntimeChecks="3"
+					RuntimeLibrary="1"
+					AllOptions="/c  /I &quot;.\\&quot; /I &quot;..\\&quot; /I &quot;..\common&quot; /I &quot;..\CxImage\CxImage\\&quot; /I &quot;..\CxImage\png\\&quot; /I &quot;..\CxImage\zlib\\&quot; /ZI /nologo /W4 /Wp64 /Od /D &quot;WIN32&quot; /D &quot;_DEBUG&quot; /D &quot;_CRTDBG_MAP_ALLOC&quot; /D &quot;_WINDOWS&quot; /D &quot;_USRDLL&quot; /D &quot;WINVER=0x0501&quot; /D &quot;_WIN32_WINNT=0x0501&quot; /D &quot;_WINDLL&quot; /D &quot;_MBCS&quot; /Gm /EHsc /RTC1 /MTd /Fo&quot;Debug/&quot; /Fd&quot;Debug/vc70.pdb&quot; /Gd /TP"
+					MSOriginalAdditionalOptions=""/>
+			</Tool>
 			<Tool
 				Name="VCCustomBuildTool"
 				Description="Copying vfw DLL to system32 directory..."
@@ -39,11 +48,17 @@
 				AdditionalDependencies="comctl32.lib winmm.lib ..\CxImage\CxImage\CxImageDLL\Debug\CxImageCrtDll_png_static_debug.lib"
 				OutputFile="$(OutDir)/CorePNG_vfw.dll"
 				LinkIncremental="2"
+				SuppressStartupBanner="TRUE"
 				ModuleDefinitionFile="driverproc.def"
 				GenerateDebugInformation="TRUE"
 				ProgramDatabaseFile="$(OutDir)/CorePNG_vfw.pdb"
 				SubSystem="2"
-				TargetMachine="1"/>
+				TargetMachine="1"
+				AdditionalOptions="">
+				<IntelOptions
+					AllOptions="/NOLOGO /DLL /OUT:&quot;Debug/CorePNG_vfw.dll&quot; /INCREMENTAL comctl32.lib winmm.lib ..\CxImage\CxImage\CxImageDLL\Debug\CxImageCrtDll_png_static_debug.lib /DEF:&quot;driverproc.def&quot; /DEBUG /PDB:&quot;Debug/CorePNG_vfw.pdb&quot; /SUBSYSTEM:WINDOWS /TLBID:1 /IMPLIB:&quot;Debug/CorePNG_vfw.lib&quot; /MACHINE:IX86  kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib"
+					MSOriginalAdditionalOptions=""/>
+			</Tool>
 			<Tool
 				Name="VCMIDLTool"/>
 			<Tool
@@ -58,6 +73,8 @@
 				Name="VCWebServiceProxyGeneratorTool"/>
 			<Tool
 				Name="VCWebDeploymentTool"/>
+			<IntelOptions
+				CompilerName="1"/>
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
@@ -85,9 +102,26 @@
 				EnableFunctionLevelLinking="TRUE"
 				UsePrecompiledHeader="0"
 				WarningLevel="4"
-				Detect64BitPortabilityProblems="TRUE"
 				DebugInformationFormat="3"
-				CallingConvention="0"/>
+				CallingConvention="0"
+				AdditionalOptions="">
+				<IntelOptions
+					Optimization="4"
+					GlobalOptimizations="1"
+					InlineFunctionExpansion="2"
+					EnableIntrinsicFunctions="1"
+					FavorSizeOrSpeed="1"
+					OmitFramePointers="0"
+					EnableFiberSafeOptimizations="0"
+					OptimizeForProcessor="2"
+					StringPooling="1"
+					MinimalRebuild="0"
+					RuntimeLibrary="0"
+					BufferSecurityCheck="0"
+					EnableFunctionLevelLinking="1"
+					AllOptions="/c  /I &quot;.\\&quot; /I &quot;..\\&quot; /I &quot;..\common&quot; /I &quot;..\CxImage\CxImage\\&quot; /I &quot;..\CxImage\png\\&quot; /I &quot;..\CxImage\zlib\\&quot; /Zi /nologo /W4 /Ox /Og /Ob2 /Oi /Ot /G6 /D &quot;WIN32&quot; /D &quot;NDEBUG&quot; /D &quot;_WINDOWS&quot; /D &quot;_USRDLL&quot; /D &quot;WINVER=0x0501&quot; /D &quot;_WIN32_WINNT=0x0501&quot; /D &quot;_WINDLL&quot; /D &quot;_MBCS&quot; /GF /FD /EHsc /MT /Gy /Fo&quot;Release/&quot; /Fd&quot;Release/vc70.pdb&quot; /Gd /TP"
+					MSOriginalAdditionalOptions=""/>
+			</Tool>
 			<Tool
 				Name="VCCustomBuildTool"
 				Description="Copying vfw DLL to system32 directory..."
@@ -99,6 +133,7 @@
 				AdditionalDependencies="comctl32.lib winmm.lib ..\CxImage\CxImage\CxImageDLL\Release\CxImageCrtDll_png_static.lib"
 				OutputFile="$(OutDir)/CorePNG_vfw.dll"
 				LinkIncremental="1"
+				SuppressStartupBanner="TRUE"
 				ModuleDefinitionFile="driverproc.def"
 				GenerateDebugInformation="TRUE"
 				GenerateMapFile="TRUE"
@@ -109,7 +144,12 @@
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
 				SupportUnloadOfDelayLoadedDLL="FALSE"
-				TargetMachine="1"/>
+				TargetMachine="1"
+				AdditionalOptions="">
+				<IntelOptions
+					AllOptions="/NOLOGO /DLL /OUT:&quot;Release/CorePNG_vfw.dll&quot; /INCREMENTAL:NO comctl32.lib winmm.lib ..\CxImage\CxImage\CxImageDLL\Release\CxImageCrtDll_png_static.lib /DEF:&quot;driverproc.def&quot; /DEBUG /PDB:&quot;Release/CorePNG_vfw.pdb&quot; /MAP:&quot;Release/CorePNG_vfw.map&quot; /MAPINFO:EXPORTS /MAPINFO:LINES /SUBSYSTEM:WINDOWS /OPT:REF /OPT:ICF /TLBID:1 /IMPLIB:&quot;Release/CorePNG_vfw.lib&quot; /MACHINE:IX86  kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib"
+					MSOriginalAdditionalOptions=""/>
+			</Tool>
 			<Tool
 				Name="VCMIDLTool"/>
 			<Tool
@@ -124,11 +164,13 @@
 				Name="VCWebServiceProxyGeneratorTool"/>
 			<Tool
 				Name="VCWebDeploymentTool"/>
+			<IntelOptions
+				CompilerName="1"/>
 		</Configuration>
 		<Configuration
 			Name="Release MAX|Win32"
-			OutputDirectory="Release MAX"
-			IntermediateDirectory="Release MAX"
+			OutputDirectory="Release_MAX"
+			IntermediateDirectory="Release_MAX"
 			ConfigurationType="2"
 			CharacterSet="2"
 			WholeProgramOptimization="TRUE">
@@ -142,16 +184,39 @@
 				OmitFramePointers="TRUE"
 				EnableFiberSafeOptimizations="TRUE"
 				OptimizeForProcessor="2"
-				AdditionalIncludeDirectories="..\;..\CxImage\CxImage\;..\CxImage\png\;..\CxImage\zlib\"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL"
+				AdditionalIncludeDirectories="..\;..\common;..\CxImage\CxImage\;..\CxImage\png\;..\CxImage\zlib\"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;WINVER=0x0501;_WIN32_WINNT=0x0501"
 				StringPooling="TRUE"
 				RuntimeLibrary="0"
 				BufferSecurityCheck="FALSE"
 				EnableFunctionLevelLinking="TRUE"
 				UsePrecompiledHeader="0"
+				AssemblerListingLocation="./Release_MAX/"
+				ObjectFile="./Release_MAX/"
+				ProgramDataBaseFileName="./Release_MAX/"
 				WarningLevel="4"
-				Detect64BitPortabilityProblems="TRUE"
-				DebugInformationFormat="0"/>
+				DebugInformationFormat="3"
+				AdditionalOptions="">
+				<IntelOptions
+					WholeProgramOptimization="1"
+					Optimization="3"
+					GlobalOptimizations="1"
+					InlineFunctionExpansion="2"
+					EnableIntrinsicFunctions="1"
+					FavorSizeOrSpeed="1"
+					OmitFramePointers="1"
+					EnableFiberSafeOptimizations="1"
+					OptimizeForProcessor="2"
+					UseProcExt="1"
+					RequireProcExt="1"
+					Parallelization="1"
+					StringPooling="1"
+					RuntimeLibrary="0"
+					BufferSecurityCheck="0"
+					EnableFunctionLevelLinking="1"
+					AllOptions="/c  /GL /I &quot;..\\&quot; /I &quot;..\common&quot; /I &quot;..\CxImage\CxImage\\&quot; /I &quot;..\CxImage\png\\&quot; /I &quot;..\CxImage\zlib\\&quot; /Zi /nologo /W4 /O3 /Og /Ob2 /Oi /Ot /Oy /GT /G6 /Qaxi /Qxi /Qparallel /D &quot;WIN32&quot; /D &quot;NDEBUG&quot; /D &quot;_WINDOWS&quot; /D &quot;_USRDLL&quot; /D &quot;WINVER=0x0501&quot; /D &quot;_WIN32_WINNT=0x0501&quot; /D &quot;_WINDLL&quot; /D &quot;_MBCS&quot; /GF /FD /EHsc /MT /Gy /Fo&quot;./Release_MAX/&quot; /Fd&quot;./Release_MAX/&quot; /Gd /TP"
+					MSOriginalAdditionalOptions=""/>
+			</Tool>
 			<Tool
 				Name="VCCustomBuildTool"
 				Description="Copying vfw DLL to system32 directory..."
@@ -160,15 +225,26 @@
 				Outputs="C:\windows\system32\$(TargetFileName)"/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="comctl32.lib winmm.lib ..\CxImage\CxImage\CxImageDLL\Release MAX\CxImageCrtDll_png_static.lib"
+				AdditionalDependencies="comctl32.lib winmm.lib ..\CxImage\CxImage\CxImageDLL\Release_MAX\CxImageCrtDll_png_static.lib"
 				OutputFile="$(OutDir)/CorePNG_vfw.dll"
 				LinkIncremental="1"
+				SuppressStartupBanner="TRUE"
+				AdditionalLibraryDirectories=""
 				ModuleDefinitionFile="driverproc.def"
 				GenerateDebugInformation="TRUE"
+				GenerateMapFile="TRUE"
+				MapFileName="$(OutDir)/$(ProjectName).map"
+				MapExports="TRUE"
+				MapLines="TRUE"
 				SubSystem="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
-				TargetMachine="1"/>
+				TargetMachine="1"
+				AdditionalOptions="">
+				<IntelOptions
+					AllOptions="/NOLOGO /DLL /LTCG /OUT:&quot;Release_MAX/CorePNG_vfw.dll&quot; /INCREMENTAL:NO comctl32.lib winmm.lib ..\CxImage\CxImage\CxImageDLL\Release_MAX\CxImageCrtDll_png_static.lib /DEF:&quot;driverproc.def&quot; /DEBUG /PDB:&quot;Release_MAX/CorePNG_vfw.pdb&quot; /MAP:&quot;Release_MAX/CorePNG_vfw.map&quot; /MAPINFO:EXPORTS /MAPINFO:LINES /SUBSYSTEM:WINDOWS /OPT:REF /OPT:ICF /TLBID:1 /IMPLIB:&quot;Release_MAX/CorePNG_vfw.lib&quot; /MACHINE:IX86  kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib"
+					MSOriginalAdditionalOptions=""/>
+			</Tool>
 			<Tool
 				Name="VCMIDLTool"/>
 			<Tool
@@ -183,6 +259,8 @@
 				Name="VCWebServiceProxyGeneratorTool"/>
 			<Tool
 				Name="VCWebDeploymentTool"/>
+			<IntelOptions
+				WholeProgramOptimization="1"/>
 		</Configuration>
 	</Configurations>
 	<Files>
@@ -190,31 +268,25 @@
 			Name="Source Files"
 			Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm">
 			<File
-				RelativePath="VFWhandler.cpp">
-			</File>
+				RelativePath="VFWhandler.cpp"/>
 			<File
-				RelativePath="driverproc.cpp">
-			</File>
+				RelativePath="driverproc.cpp"/>
 		</Filter>
 		<Filter
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl;inc">
 			<File
-				RelativePath="VFWhandler.h">
-			</File>
+				RelativePath="VFWhandler.h"/>
 			<File
-				RelativePath="resource.h">
-			</File>
+				RelativePath="resource.h"/>
 		</Filter>
 		<Filter
 			Name="Resource Files"
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe">
 			<File
-				RelativePath="CorePNG_vfw.rc">
-			</File>
+				RelativePath="CorePNG_vfw.rc"/>
 			<File
-				RelativePath="driverproc.def">
-			</File>
+				RelativePath="driverproc.def"/>
 		</Filter>
 		<Filter
 			Name="Colorspace Conversion"
@@ -239,63 +311,56 @@
 "
 						Outputs="$(IntDir)\$(InputName).obj"/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="Release MAX|Win32">
+					<Tool
+						Name="VCCustomBuildTool"
+						Description="Assembling $(InputName)"
+						CommandLine="ml /c /W2 /Zi /Fo$(IntDir)\$(InputName).obj  &quot;$(InputPath)&quot;"
+						Outputs="$(IntDir)\$(InputName).obj"/>
+				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="..\common\convert_yuy2.cpp">
-			</File>
+				RelativePath="..\common\convert_yuy2.cpp"/>
 			<File
-				RelativePath="..\common\convert_yuy2.h">
-			</File>
+				RelativePath="..\common\convert_yuy2.h"/>
 			<File
-				RelativePath="..\common\convert_yv12.cpp">
-			</File>
+				RelativePath="..\common\convert_yv12.cpp"/>
 			<File
-				RelativePath="..\common\convert_yv12.h">
-			</File>
+				RelativePath="..\common\convert_yv12.h"/>
 		</Filter>
 		<Filter
 			Name="CpuInfo"
 			Filter="">
 			<File
-				RelativePath="..\common\cpu_info.cpp">
-			</File>
+				RelativePath="..\common\cpu_info.cpp"/>
 			<File
-				RelativePath="..\common\cpu_info.h">
-			</File>
+				RelativePath="..\common\cpu_info.h"/>
 		</Filter>
 		<Filter
 			Name="CrashCatcher"
 			Filter="">
 			<File
-				RelativePath="..\common\CorePNG_crash.rc">
-			</File>
+				RelativePath="..\common\CorePNG_crash.rc"/>
 			<File
-				RelativePath="..\common\ZipArchive.cpp">
-			</File>
+				RelativePath="..\common\ZipArchive.cpp"/>
 			<File
-				RelativePath="..\common\ZipArchive.h">
-			</File>
+				RelativePath="..\common\ZipArchive.h"/>
 			<File
-				RelativePath="..\common\mdump.cpp">
-			</File>
+				RelativePath="..\common\mdump.cpp"/>
 			<File
-				RelativePath="..\common\mdump.h">
-			</File>
+				RelativePath="..\common\mdump.h"/>
 			<File
-				RelativePath="..\common\resource.h">
-			</File>
+				RelativePath="..\common\resource.h"/>
 		</Filter>
 		<Filter
 			Name="Image Processing"
 			Filter="">
 			<File
-				RelativePath="..\common\quadrantscan.cpp">
-			</File>
+				RelativePath="..\common\quadrantscan.cpp"/>
 			<File
-				RelativePath="..\common\quadrantscan.h">
-			</File>
+				RelativePath="..\common\quadrantscan.h"/>
 		</Filter>
 	</Files>
-	<Globals>
-	</Globals>
+	<Globals/>
 </VisualStudioProject>

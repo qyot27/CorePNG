@@ -93,7 +93,9 @@ void _stdcall RGBtoYUV422_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidt
 			std::ostringstream buf; \
 			buf << "Exception: "; \
 			buf << ex.what(); \
-			buf << ("\nFile: " __FILE__ "\nFunction: " __FUNCTION__ "\nLine:"); \
+			buf << ("\nFile: " __FILE__); \
+			/*buf << ("\nFunction: " __FUNCTION__) \*/ \
+			buf << ("\nLine:"); \
 			buf << __LINE__; \
 			buf << "\nTry to generate bug report?"; \
 			int msgBoxRet = MessageBoxA(NULL, buf.str().c_str(), "CorePNG VFW Codec Error", MB_YESNO|MB_TASKMODAL); \
@@ -105,14 +107,17 @@ void _stdcall RGBtoYUV422_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidt
 	} catch (...) { \
 		if (CorePNG_GetRegistryValue("Crash Catcher Enabled", 0)) { \
 			std::ostringstream buf; \
-			buf << ("Unhandled Exception,\nFile: " __FILE__ "\nFunction: " __FUNCTION__ "\nLine:"); \
+			buf << ("Unhandled Exception,"); \
+			buf << ("\nFile: " __FILE__); \
+			/*buf << ("\nFunction: " __FUNCTION__) \*/ \
+			buf << ("\nLine:"); \
 			buf << __LINE__; \
 			buf << "\nTry to generate bug report?"; \
 			int msgBoxRet = MessageBoxA(NULL, buf.str().c_str(), "CorePNG VFW Codec Error", MB_YESNO|MB_TASKMODAL); \
 			if (msgBoxRet == IDYES) { \
 					throw; \
 			} \
-		}\
+		};\
 		return ICERR_ERROR; \
 	};
 #endif
