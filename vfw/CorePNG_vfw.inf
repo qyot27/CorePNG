@@ -9,12 +9,12 @@ Class = MEDIA
 CorePNG_vfw.dll=1
 
 [Installable.Drivers]
-WARP = 1:CorePNG_vfw.dll, "VIDC.PNG ", "PNG", , ,
+PNG = 1:CorePNG_vfw.dll, "VIDC.PNG1", "PNG", , ,
 
 [DefaultInstall]
 CopyFiles=PNG.Copy,WARP.Copy.Inf
 Updateinis = PNG.Updateini
-addreg = PNG.AddReg,PNG.AddReg9x, WARP.FilterReg
+addreg = PNG.AddReg,PNG.AddReg9x, PNG.FilterReg
 MediaType = SOFTWARE
 
 [DefaultInstall.ntx86]
@@ -80,6 +80,6 @@ InfFile="CorePNG_vfw.inf"
 UninstallDispName="CorePNG VFW video codec"
 UnInstallPath="Software\Microsoft\Windows\CurrentVersion\Uninstall\CorePNG"
 MediaClassName="Media Devices"
-mfgname="Gldm"
+mfgname="Jory Stone"
 KEY_RUNONCE="SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
 

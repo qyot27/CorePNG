@@ -83,6 +83,7 @@ protected:
 	CxImage m_Image;
 	VIDEOINFOHEADER m_VideoHeader;
 	long m_BufferSize;
+	GUID m_OutputSubType;
 };
 
 class CCorePNGSubtitlerFilterPNGInputPin : public CTransformInputPin {

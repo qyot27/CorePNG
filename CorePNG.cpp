@@ -43,8 +43,10 @@ static const GUID CLSID_CorePNGSubtitler =
 { 0x05b84a39, 0xdd6b, 0x48c1, { 0xbb, 0xa5, 0x9f, 0x95, 0xde, 0x9a, 0x10, 0x29 } };
 
 #define FOURCC_PNG MAKEFOURCC('P', 'N', 'G', '1')
+#define FOURCC_PNG_OLD MAKEFOURCC('P', 'N', 'G', ' ')
 
 const static GUID MEDIASUBTYPE_PNG = (GUID)FOURCCMap(FOURCC_PNG);
+const static GUID MEDIASUBTYPE_PNG_OLD = (GUID)FOURCCMap(FOURCC_PNG_OLD);
 
 const AMOVIESETUP_FILTER sudCorePNGEncoder =
 {
@@ -57,12 +59,14 @@ const AMOVIESETUP_FILTER sudCorePNGEncoder =
 
 AMOVIESETUP_MEDIATYPE sudInputType[] =
 {
-	{ &MEDIATYPE_Video, &MEDIASUBTYPE_PNG}
+	{ &MEDIATYPE_Video, &MEDIASUBTYPE_PNG},
+	{ &MEDIATYPE_Video, &MEDIASUBTYPE_PNG_OLD}
 };
 
 AMOVIESETUP_MEDIATYPE sudOutputType[] =
 {
-	{ &MEDIATYPE_Video, &MEDIASUBTYPE_RGB24 }
+	{ &MEDIATYPE_Video, &MEDIASUBTYPE_RGB24 },
+	{ &MEDIATYPE_Video, &MEDIASUBTYPE_RGB32 }
 };
 
 AMOVIESETUP_PIN sudPins[] =
@@ -386,7 +390,7 @@ HRESULT CCorePNGDecoderFilter::CheckInputType(const CMediaType *mtIn) {
 	if (*mtIn->Type() == MEDIATYPE_Video) {
 		// Ok it's audio...
 		// We need PCM
-		if (*mtIn->Subtype() == MEDIASUBTYPE_PNG) {
+		if (*mtIn->Subtype() == MEDIASUBTYPE_PNG || *mtIn->Subtype() == MEDIASUBTYPE_PNG_OLD) {
 			// Yay \o/
 			memcpy(&m_VideoHeader, mtIn->Format(), sizeof(VIDEOINFOHEADER));
 			m_Image.Create(m_VideoHeader.bmiHeader.biWidth, m_VideoHeader.bmiHeader.biHeight, 24);
@@ -399,7 +403,7 @@ HRESULT CCorePNGDecoderFilter::CheckInputType(const CMediaType *mtIn) {
 HRESULT CCorePNGDecoderFilter::CheckTransform(const CMediaType *mtIn, const CMediaType *mtOut) {
 	HRESULT hr = CheckInputType(mtIn);
 
-	if (mtOut->majortype != MEDIATYPE_Video || mtOut->subtype != MEDIASUBTYPE_RGB24)
+	if (mtOut->majortype != MEDIATYPE_Video || (mtOut->subtype != MEDIASUBTYPE_RGB24 && mtOut->subtype != MEDIASUBTYPE_RGB32))
 		return S_FALSE;
 
 	if(hr == S_FALSE) {
@@ -431,7 +435,7 @@ HRESULT CCorePNGDecoderFilter::DecideBufferSize(IMemAllocator *pAlloc, ALLOCATOR
 	if(SUCCEEDED(hr)) {
 		hr = pInAlloc->GetProperties(&InProps);
 		if(SUCCEEDED(hr)) {
-			ppropInputRequest->cbBuffer = InProps.cbBuffer * InProps.cBuffers;
+			ppropInputRequest->cbBuffer = m_VideoHeader.bmiHeader.biSizeImage;
 			m_BufferSize = ppropInputRequest->cbBuffer;
 		}
 		pInAlloc->Release();
@@ -479,6 +483,18 @@ HRESULT CCorePNGDecoderFilter::GetMediaType(int iPosition, CMediaType *pMediaTyp
 
 		pMediaType->SetFormatType(&FORMAT_VideoInfo);
 		return S_OK;
+	} else if (iPosition == 1) {
+		CheckPointer(pMediaType, E_POINTER);
+
+		pMediaType->SetType(&MEDIATYPE_Video);
+		pMediaType->SetSubtype(&MEDIASUBTYPE_RGB32);
+
+		// Set PNG format type
+		m_VideoHeader.bmiHeader.biCompression = 0;
+		pMediaType->SetFormat((BYTE *)&m_VideoHeader, sizeof(VIDEOINFOHEADER));
+
+		pMediaType->SetFormatType(&FORMAT_VideoInfo);
+		return S_OK;
 	}
 
 	return VFW_S_NO_MORE_ITEMS;
@@ -490,7 +506,7 @@ HRESULT CCorePNGDecoderFilter::SetMediaType(PIN_DIRECTION direction, const CMedi
 	if (direction == PINDIR_INPUT) {
 
 	} else if (direction == PINDIR_OUTPUT) {
-
+		m_OutputSubType = pmt->subtype;
 	}
 
 	return hr;
@@ -508,8 +524,24 @@ HRESULT CCorePNGDecoderFilter::Transform(IMediaSample *pIn, IMediaSample *pOut) 
 	pOut->GetPointer(&pOutBuffer);
 	m_Image.Decode(pBuffer, lActual, CXIMAGE_FORMAT_PNG);
 	//m_Image.Draw(GetDC(NULL));
+	if (m_OutputSubType == MEDIASUBTYPE_RGB24) {
+		CopyMemory(pOutBuffer, m_Image.GetBits(), m_VideoHeader.bmiHeader.biSizeImage);
+	
+	} else if (m_OutputSubType == MEDIASUBTYPE_RGB32) {
+		// Convert the 24-bit+Alpha to 32-bits
+		m_Image.Flip();
+		RGBTRIPLE *decodedImage = (RGBTRIPLE *)m_Image.GetBits();	
+		RGBQUAD *decodedOutput = (RGBQUAD *)pOutBuffer;
 
-	CopyMemory(pOutBuffer, m_Image.GetBits(), m_VideoHeader.bmiHeader.biSizeImage);
+		for (DWORD height = 0; height < m_Image.GetHeight(); height++) {
+			for (DWORD width = 0; width < m_Image.GetWidth(); width++) {
+				decodedOutput[(m_Image.GetWidth()*height)+width].rgbBlue = decodedImage[(m_Image.GetWidth()*height)+width].rgbtBlue;
+				decodedOutput[(m_Image.GetWidth()*height)+width].rgbGreen = decodedImage[(m_Image.GetWidth()*height)+width].rgbtGreen;
+				decodedOutput[(m_Image.GetWidth()*height)+width].rgbRed = decodedImage[(m_Image.GetWidth()*height)+width].rgbtRed;
+				decodedOutput[(m_Image.GetWidth()*height)+width].rgbReserved = m_Image.AlphaGet(width, height);
+			}
+		}
+	}
 
 	pOut->SetActualDataLength(m_VideoHeader.bmiHeader.biSizeImage);
 

@@ -5,6 +5,7 @@
 #include "ximage.h"
 
 #define FOURCC_PNG mmioFOURCC('P','N','G','1')
+#define FOURCC_PNG_OLD mmioFOURCC('P','N','G',' ')
 
 class VFWhandler
 {

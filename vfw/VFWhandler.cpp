@@ -46,14 +46,18 @@ int VFWhandler::VFW_compress(ICCOMPRESS* lParam1, DWORD lParam2)
 	DWORD lActual = lParam1->lpbiInput->biSizeImage;
 
 	// Now compress the frame.
-	memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
+	if (lParam1->lpbiInput->biBitCount == 24) {
+		memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
+	} else if (lParam1->lpbiInput->biBitCount == 32) {
+		m_Image.CreateFromARGB(lParam1->lpbiInput->biWidth, lParam1->lpbiInput->biWidth, (BYTE *)lParam1->lpInput);
+	}
 	m_Memfile.Seek(0, 0);		
 	m_Image.Encode(&m_Memfile, CXIMAGE_FORMAT_PNG);	
 	//m_Image.Draw(GetDC(NULL));
 
 	lActual = m_Memfile.Tell();	
 
-	// Now put the result back in other lame ass MS structures.
+	// Now put the result back
 	memcpy(lParam1->lpOutput, m_Memfile.GetBuffer(), lActual);
 	lParam1->lpbiOutput->biSizeImage = lActual;
 	lParam1->lpbiOutput->biSize = sizeof(BITMAPINFOHEADER);
@@ -77,7 +81,7 @@ int VFWhandler::VFW_compress(ICCOMPRESS* lParam1, DWORD lParam2)
 
 int VFWhandler::VFW_compress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output)
 {
-	if(input->biCompression == 0 && input->biBitCount == 24)
+	if(input->biCompression == 0 && (input->biBitCount == 24 || input->biBitCount == 32))
 	{
 		return ICERR_OK;
 	}
@@ -130,7 +134,7 @@ int VFWhandler::VFW_compress_get_format(BITMAPINFOHEADER* input, BITMAPINFOHEADE
 
 int VFWhandler::VFW_compress_get_size(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output)
 {
-	return( input->biHeight * input->biWidth * 3);
+	return (input->biHeight * input->biWidth * (input->biBitCount/8));
 }
 
 /******************************************************************************
@@ -187,8 +191,25 @@ int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 	// Now decompress the frame.
 	m_Image.Decode((BYTE *)lParam1->lpInput, lActual, CXIMAGE_FORMAT_PNG);		
 
-	lParam1->lpbiOutput->biSizeImage = lParam1->lpbiInput->biWidth * lParam1->lpbiInput->biHeight * (lParam1->lpbiInput->biBitCount/8);
-	memcpy(lParam1->lpOutput, m_Image.GetBits(), lParam1->lpbiOutput->biSizeImage);
+	lParam1->lpbiOutput->biSizeImage = lParam1->lpbiInput->biWidth * lParam1->lpbiInput->biHeight * (lParam1->lpbiInput->biBitCount / 8);
+
+	if (lParam1->lpbiOutput->biBitCount == 32) {
+		// Convert the 24-bit+Alpha to 32-bits
+		m_Image.Flip();
+		RGBTRIPLE *decodedImage = (RGBTRIPLE *)m_Image.GetBits();	
+		RGBQUAD *decodedOutput = (RGBQUAD *)lParam1->lpOutput;
+
+		for (DWORD height = 0; height < m_Image.GetHeight(); height++) {
+			for (DWORD width = 0; width < m_Image.GetWidth(); width++) {
+				decodedOutput[(m_Image.GetWidth()*height)+width].rgbBlue = decodedImage[(m_Image.GetWidth()*height)+width].rgbtBlue;
+				decodedOutput[(m_Image.GetWidth()*height)+width].rgbGreen = decodedImage[(m_Image.GetWidth()*height)+width].rgbtGreen;
+				decodedOutput[(m_Image.GetWidth()*height)+width].rgbRed = decodedImage[(m_Image.GetWidth()*height)+width].rgbtRed;
+				decodedOutput[(m_Image.GetWidth()*height)+width].rgbReserved = m_Image.AlphaGet(width, height);
+			}
+		}
+	} else if (lParam1->lpbiOutput->biBitCount == 24) {
+		memcpy(lParam1->lpOutput, m_Image.GetBits(), lParam1->lpbiOutput->biSizeImage);
+	}
 	lParam1->lpbiOutput->biSize = sizeof(BITMAPINFOHEADER);
 	lParam1->lpbiOutput->biWidth = lParam1->lpbiInput->biWidth;
 	lParam1->lpbiOutput->biHeight = lParam1->lpbiInput->biHeight;
@@ -208,8 +229,16 @@ int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 
 int VFWhandler::VFW_decompress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output)
 {
-	if(input->biCompression == FOURCC_PNG)
+	if (input->biCompression == FOURCC_PNG || input->biCompression == FOURCC_PNG_OLD)
 	{
+		if (output != NULL) {
+			if (output->biCompression != BI_RGB)
+				// Not RGB
+				return ICERR_BADFORMAT;
+			if (output->biBitCount != 24 && output->biBitCount != 32)
+				// Bad bit-depth
+				return ICERR_BADFORMAT;
+		}
 		return ICERR_OK;
 	}
 	else
@@ -229,13 +258,14 @@ int VFWhandler::VFW_decompress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* 
 
 int VFWhandler::VFW_decompress_get_format(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output)
 {
-	output->biSizeImage = input->biSizeImage;
-	output->biSize = input->biSize;
-	output->biWidth = input->biWidth;
-	output->biHeight = input->biHeight;
-	output->biCompression = 0;//input->biClrUsed; // restore old fourcc
-	output->biBitCount = input->biBitCount;
-
+	if (output != NULL) {
+		output->biSizeImage = input->biSizeImage;
+		output->biSize = input->biSize;
+		output->biWidth = input->biWidth;
+		output->biHeight = input->biHeight;
+		output->biCompression = BI_RGB;
+		output->biBitCount = input->biBitCount;
+	}
 	return ICERR_OK;
 }
 
