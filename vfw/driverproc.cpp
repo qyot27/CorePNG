@@ -26,12 +26,6 @@
 * VFWhandler object that does most of the dirty work related to VFW.
 *
 ******************************************************************************/
-#ifdef _DEBUG
-//Memory Debugging define
-//#define _CRTDBG_MAP_ALLOC 
-#include <stdlib.h>
-#include <crtdbg.h>
-#endif
 
 #include <windows.h>
 #include <vfw.h>
@@ -78,7 +72,7 @@ BOOL APIENTRY DllMain(HANDLE hModule, DWORD  ul_reason_for_call, LPVOID lpReserv
 
 // Here's the function that really matters, DriverProc.
 // Pretty much all the action happens here.
-extern "C" __declspec(dllexport) LRESULT WINAPI DriverProc(DWORD dwDriverId, HDRVR hDriver, UINT uMsg, LPARAM lParam1, LPARAM lParam2) 
+extern "C" LRESULT WINAPI DriverProc(DWORD dwDriverId, HDRVR hDriver, UINT uMsg, LPARAM lParam1, LPARAM lParam2) 
 {
 	// Ok make a VFWhandler out of whatever we're given.
 	VFWhandler* handler = (VFWhandler*)dwDriverId;
@@ -272,4 +266,10 @@ extern "C" __declspec(dllexport) LRESULT WINAPI DriverProc(DWORD dwDriverId, HDR
 	default:
 		return DefDriverProc(dwDriverId, hDriver, uMsg, lParam1, lParam2);
 	}
+}
+
+extern "C" void WINAPI ShowConfiguration(HWND hwnd, HINSTANCE hinst, LPSTR lpszCmdLine, int nCmdShow)
+{
+	VFWhandler config;
+	config.VFW_configure(hwnd);
 }

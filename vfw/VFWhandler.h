@@ -23,6 +23,19 @@
 #include <crtdbg.h>
 #endif
 
+#include <windows.h>
+#include <commctrl.h>
+#include <vfw.h>
+#include <assert.h>
+#include <process.h>
+#include <sstream>
+#include <exception>
+// CxImage includes
+#include "ximage.h"
+#include "ximapng.h"
+// .rc Resource include
+#include "resource.h"
+
 #ifdef _DEBUG
    #define DEBUG_CLIENTBLOCK   new( _CLIENT_BLOCK, __FILE__, __LINE__)
 #else
@@ -39,22 +52,8 @@
 #define ODS(x)
 #endif
 
-#include <windows.h>
-#include <commctrl.h>
-#include <vfw.h>
-#include <assert.h>
-#include <process.h>
-#include "ximage.h"
-#include "ximapng.h"
-#include <sstream>
-#include <exception>
-#include "resource.h"
-
 #define COREPNG_VFW_VERSION "CorePNG VFW Codec v0.7"
 #define COREPNG_VFW_VERSIONW L"CorePNG VFW Codec v0.7"
-
-DWORD CorePNG_GetRegistryValue(char *value_key, DWORD default_value);
-void CorePNG_SetRegistryValue(char *value_key, DWORD the_value);
 
 #ifndef _DEBUG
 #define VFW_CODEC_CRASH_CATCHER_START \
@@ -98,10 +97,16 @@ void CorePNG_SetRegistryValue(char *value_key, DWORD the_value);
 		return ICERR_ERROR;\
 	};
 */
-#define FOURCC_YV12 mmioFOURCC('Y','V','1','2')
-#define FOURCC_YUY2 mmioFOURCC('Y','U','Y','2')
-#define FOURCC_PNG mmioFOURCC('P','N','G','1')
-#define FOURCC_PNG_OLD mmioFOURCC('P','N','G',' ')
+#define MAKE_FOURCC(x) mmioFOURCC(x[0], x[1], x[2], x[3])
+
+#define FOURCC_YV12			MAKE_FOURCC("YV12")
+#define FOURCC_IYUV			MAKE_FOURCC("IYUV")
+#define FOURCC_YUY2			MAKE_FOURCC("YUY2")
+#define FOURCC_UYVY			MAKE_FOURCC("UUYV")
+#define FOURCC_YUYV			MAKE_FOURCC("YUYV")
+#define FOURCC_YVYU			MAKE_FOURCC("YVYU")
+#define FOURCC_PNG			MAKE_FOURCC("PNG1")
+#define FOURCC_PNG_OLD	MAKE_FOURCC("PNG ")
 
 /// Leave the output as orignal
 #define PNGOutputMode_None  0x00
@@ -109,7 +114,10 @@ void CorePNG_SetRegistryValue(char *value_key, DWORD the_value);
 #define PNGOutputMode_RGB24 0x01
 #define PNGOutputMode_RGB32 0x02
 #define PNGOutputMode_YUY2  0x03
-#define PNGOutputMode_YV12  0x04
+#define PNGOutputMode_YVYU  0x04
+#define PNGOutputMode_UYVY  0x05
+#define PNGOutputMode_YV12  0x10
+#define PNGOutputMode_IYUV  0x11
 
 #define PNGFrameType_RGB24 0x01
 #define PNGFrameType_YUY2  0x02
@@ -249,6 +257,9 @@ BOOL CALLBACK ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM l
 BOOL CALLBACK AboutDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 WORD AddTooltip(HWND hwndTooltip, HWND hwndClient, LPSTR strText);
+
+DWORD CorePNG_GetRegistryValue(char *value_key, DWORD default_value);
+void CorePNG_SetRegistryValue(char *value_key, DWORD the_value);
 
 void YV12toRGB24(BYTE *pInput, BYTE *pOutput, DWORD dwWidth, DWORD dwHeight);
 void YV12toRGB24_Resample(CxImage &Y_plane, CxImage &U_plane, CxImage &V_plane, BYTE *pOutput, WORD wMethod);

@@ -2,3 +2,4 @@ LIBRARY         CorePNG_vfw
 
 EXPORTS
 	DriverProc
+	ShowConfiguration
