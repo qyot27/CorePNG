@@ -109,6 +109,10 @@ protected:
 	inline bool CreateYUY2(BITMAPINFOHEADER* input);
 	inline void CompressYUY2KeyFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
 	inline void CompressYUY2DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
+	
+	inline bool CreateYV12(BITMAPINFOHEADER* input);
+	inline void CompressYV12KeyFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
+	inline void CompressYV12DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
 
 	inline int CompressKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2);
 	inline int CompressDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2);

@@ -118,6 +118,103 @@ void VFWhandler::CompressYUY2DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBu
 	V_Channel.Encode(targetBuffer);	
 };
 
+bool VFWhandler::CreateYV12(BITMAPINFOHEADER* input)
+{
+	m_YUV_Mode = 0;
+
+	m_ImageSize = input->biSizeImage;
+
+	m_Height = input->biHeight;
+	m_HeightDouble = m_Height * 2;
+	m_Width = input->biWidth;
+	
+	Y_Channel.Create(m_Width, m_Height, 8);
+	U_Channel.Create(m_Width/2, m_Height/2, 8);
+	V_Channel.Create(m_Width/2, m_Height/2, 8);
+
+	Y_Channel.SetGrayPalette();
+	U_Channel.SetGrayPalette();
+	V_Channel.SetGrayPalette();
+
+	Y_Channel_Delta = Y_Channel;
+	U_Channel_Delta = U_Channel;
+	V_Channel_Delta = V_Channel;
+
+	return true;
+};
+
+void VFWhandler::CompressYV12KeyFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer)
+{
+	// YV12
+	BYTE *Y_data = (BYTE *)Y_Channel.GetBits();	
+	BYTE *V_data = (BYTE *)V_Channel.GetBits();
+	BYTE *U_data = (BYTE *)U_Channel.GetBits();
+
+	memcpy(Y_Channel.GetBits(), inputYUV2Data, Y_Channel.GetSizeImage());
+	inputYUV2Data += Y_Channel.GetSizeImage();
+	memcpy(V_Channel.GetBits(), inputYUV2Data, V_Channel.GetSizeImage());
+	inputYUV2Data += V_Channel.GetSizeImage();
+	memcpy(U_Channel.GetBits(), inputYUV2Data, U_Channel.GetSizeImage());
+
+
+	if (m_DeltaFramesEnabled) {
+		memcpy(Y_Channel_Delta.GetBits(), Y_Channel.GetBits(), Y_Channel.GetSizeImage());
+		memcpy(U_Channel_Delta.GetBits(), U_Channel.GetBits(), U_Channel.GetSizeImage());
+		memcpy(V_Channel_Delta.GetBits(), V_Channel.GetBits(), V_Channel.GetSizeImage());
+		m_DeltaFrameCount++;
+	}
+	//Y_Channel.Draw(GetDC(NULL));
+	//U_Channel.Draw(GetDC(NULL));
+	//V_Channel.Draw(GetDC(NULL));
+	
+	// Encode YV12
+	Y_Channel.Encode(targetBuffer);	
+	V_Channel.Encode(targetBuffer);	
+	U_Channel.Encode(targetBuffer);	
+};
+
+void VFWhandler::CompressYV12DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer)
+{
+	// YV12
+	BYTE *Y_data = (BYTE *)Y_Channel.GetBits();
+	BYTE *U_data = (BYTE *)U_Channel.GetBits();
+	BYTE *V_data = (BYTE *)V_Channel.GetBits();
+	
+	BYTE *Y_Delta_data = (BYTE *)Y_Channel_Delta.GetBits();
+	BYTE *U_Delta_data = (BYTE *)U_Channel_Delta.GetBits();
+	BYTE *V_Delta_data = (BYTE *)V_Channel_Delta.GetBits();
+	
+	// Copy and Compare to the previous frame
+	for (DWORD height = 0; height < m_HeightDouble; height++) {
+		for (DWORD width = 0; width < m_Width; width += 4) {
+			Y_data++[0] = inputYUV2Data[width+0] - Y_Delta_data[0];
+			Y_Delta_data++[0] = inputYUV2Data[width+0];
+
+			U_data++[0] = inputYUV2Data[width+1] - U_Delta_data[0];
+			U_Delta_data++[0] = inputYUV2Data[width+1];
+
+			Y_data++[0] = inputYUV2Data[width+2] - Y_Delta_data[0];
+			Y_Delta_data++[0] = inputYUV2Data[width+2];
+
+			V_data++[0] = inputYUV2Data[width+3] - V_Delta_data[0];
+			V_Delta_data++[0] = inputYUV2Data[width+3];
+		}
+		inputYUV2Data += width;
+	}		
+
+	if (m_DeltaFrameCount++ > m_DeltaFrameLimit)
+		m_DeltaFrameCount = 0;
+
+	//Y_Channel.Draw(GetDC(NULL));
+	//U_Channel.Draw(GetDC(NULL));
+	//V_Channel.Draw(GetDC(NULL));
+	
+	// Encode YV12
+	Y_Channel.Encode(targetBuffer);	
+	U_Channel.Encode(targetBuffer);	
+	V_Channel.Encode(targetBuffer);	
+};
+
 VFWhandler::VFWhandler(void)
 {
 	m_BufferSize = 0;
@@ -269,6 +366,18 @@ int VFWhandler::CompressKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2)
 			CompressYUY2KeyFrame((BYTE *)lParam1->lpInput, &m_MemoryBuffer);
 			lActual = m_MemoryBuffer.Tell();	
 		}			
+	} else if (lParam1->lpbiInput->biCompression == FOURCC_YV12 && lParam1->lpbiInput->biBitCount == 12) {
+		if (lParam1->lpOutput != NULL) {
+			// Write directly to the VFW buffer
+			CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);			
+			CompressYV12KeyFrame((BYTE *)lParam1->lpInput, &memFile);	
+			lActual = memFile.Tell();	
+		} else {
+			// Write to our tempory memory buffer instead
+			m_MemoryBuffer.Seek(0, 0);			
+			CompressYV12KeyFrame((BYTE *)lParam1->lpInput, &m_MemoryBuffer);
+			lActual = m_MemoryBuffer.Tell();	
+		}	
 	}
 
 	// Now put the result back	
@@ -402,6 +511,8 @@ int VFWhandler::VFW_compress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* ou
 	VFW_CODEC_CRASH_CATCHER_START;
 	if(input->biCompression == FOURCC_YUY2)
 		return ICERR_OK;
+	if(input->biCompression == FOURCC_YV12)
+		return ICERR_OK;
 
 	if(input->biCompression == BI_RGB 
 		&& (input->biBitCount == 24 || input->biBitCount == 32)) 
@@ -442,6 +553,8 @@ int VFWhandler::VFW_compress_get_format(BITMAPINFOHEADER* input, BITMAPINFOHEADE
 	codecPrivate->wSize = sizeof(CorePNGCodecPrivate);
 	if (input->biCompression == FOURCC_YUY2)
 		codecPrivate->bType = PNGFrameType_YUY2;
+	else if (input->biCompression == FOURCC_YV12)
+		codecPrivate->bType = PNGFrameType_YV12;
 	else if (input->biCompression == BI_RGB)
 		codecPrivate->bType = PNGFrameType_RGB24;
 
@@ -495,6 +608,16 @@ int VFWhandler::VFW_compress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* ou
 	if (input->biCompression == FOURCC_YUY2) {
 		// Use the YUV2 encoder
 		CreateYUY2(input);
+
+		Y_Channel.SetCompressionFilters(m_PNGFilters);
+		Y_Channel.SetCompressionLevel(m_ZlibCompressionLevel);
+		U_Channel.SetCompressionFilters(m_PNGFilters);
+		U_Channel.SetCompressionLevel(m_ZlibCompressionLevel);
+		V_Channel.SetCompressionFilters(m_PNGFilters);
+		V_Channel.SetCompressionLevel(m_ZlibCompressionLevel);
+	} else if (input->biCompression == FOURCC_YV12) {
+		// Use the YV12 encoder
+		CreateYV12(input);
 
 		Y_Channel.SetCompressionFilters(m_PNGFilters);
 		Y_Channel.SetCompressionLevel(m_ZlibCompressionLevel);
@@ -667,7 +790,7 @@ int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 		BYTE *V_data = (BYTE *)V_Channel.GetBits();
 		BYTE *outputYUV2Data = (BYTE *)lParam1->lpOutput;
 		
-		memset(lParam1->lpOutput, 0, lParam1->lpbiOutput->biSizeImage);
+		//memset(lParam1->lpOutput, 0, lParam1->lpbiOutput->biSizeImage);
 		
 		for (DWORD height = 0; height < Y_Channel.GetHeight()*2; height++) {
 			for (DWORD width = 0; width < Y_Channel.GetWidth(); width += 4) {
@@ -678,6 +801,59 @@ int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 			}
 			outputYUV2Data += width;
 		}
+	} else if (m_CodecPrivate.bType == PNGFrameType_YV12) {
+		// Preserve the previous frame
+		if (lParam1->dwFlags == ICDECOMPRESS_NOTKEYFRAME) {
+			Y_Channel_Delta = Y_Channel;
+			U_Channel_Delta = U_Channel;
+			V_Channel_Delta = V_Channel;
+		}
+
+		// Now decompress the frame.
+		CxMemFile memFile((BYTE *)lParam1->lpInput, lActual);
+		Y_Channel.Decode(&memFile);		
+		U_Channel.Decode(&memFile);		
+		V_Channel.Decode(&memFile);		
+		
+		//Y_Channel.Draw(GetDC(NULL));
+		//U_Channel.Draw(GetDC(NULL));
+		//V_Channel.Draw(GetDC(NULL));
+
+		if (lParam1->dwFlags == ICDECOMPRESS_NOTKEYFRAME) {
+			// Mix the old image and the new image together
+			BYTE *Y_data = (BYTE *)Y_Channel.GetBits();
+			BYTE *U_data = (BYTE *)U_Channel.GetBits();
+			BYTE *V_data = (BYTE *)V_Channel.GetBits();
+
+			BYTE *Y_Delta_data = (BYTE *)Y_Channel_Delta.GetBits();
+			BYTE *U_Delta_data = (BYTE *)U_Channel_Delta.GetBits();
+			BYTE *V_Delta_data = (BYTE *)V_Channel_Delta.GetBits();
+
+			// Copy and Compare to the previous frame
+			for (DWORD height = 0; height < m_HeightDouble; height++) {
+				for (DWORD width = 0; width < m_Width; width += 4) {
+					Y_data++[0] = Y_data[width+0] + Y_Delta_data++[0];
+					U_data++[0] = U_data[width+1] + U_Delta_data++[0];
+					Y_data++[0] = Y_data[width+2] + Y_Delta_data++[0];
+					V_data++[0] = V_data[width+3] + V_Delta_data++[0];					
+				}				
+			}		
+
+			Y_Channel = Y_Channel_Delta;
+			U_Channel = U_Channel_Delta;
+			V_Channel = V_Channel_Delta;
+		}
+
+		// Merge and Copy the decoded YUV channels into the output buffer
+		BYTE *outputYUV2Data = (BYTE *)lParam1->lpOutput;
+		memcpy(outputYUV2Data, Y_Channel.GetBits(), Y_Channel.GetSize());
+		outputYUV2Data += Y_Channel.GetSize();
+		memcpy(outputYUV2Data, V_Channel.GetBits(), V_Channel.GetSize());
+		outputYUV2Data += V_Channel.GetSize();
+		memcpy(outputYUV2Data, U_Channel.GetBits(), U_Channel.GetSize());
+		
+		
+		//memset(lParam1->lpOutput, 0, lParam1->lpbiOutput->biSizeImage);				
 	}
 	return ICERR_OK;
 	VFW_CODEC_CRASH_CATCHER_END;
@@ -697,29 +873,40 @@ int VFWhandler::VFW_decompress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* 
 	if (input->biCompression == FOURCC_PNG || input->biCompression == FOURCC_PNG_OLD)
 	{
 		if (output != NULL) {
-			if (output->biCompression == BI_RGB) {
-				if (!m_DecodeToRGB24) {
-					if (output->biBitCount != 24 && output->biBitCount != 32)
-						// Bad bit-depth
-						return ICERR_BADFORMAT;
+			BYTE type = PNGFrameType_RGB24;
+			if (input->biSize > sizeof(BITMAPINFOHEADER)) {
+				type = ((CorePNGCodecPrivate *)(((BYTE *)input)+sizeof(BITMAPINFOHEADER)))->bType;
+			}
+			if (type == PNGFrameType_RGB24) {
+				if (output->biCompression == BI_RGB) {
+					if (!m_DecodeToRGB24) {
+						if (output->biBitCount != 24 && output->biBitCount != 32)
+							// Bad bit-depth
+							return ICERR_BADFORMAT;
+					} else {
+						// Only decode 24-bits
+						if (output->biBitCount != 24)
+							// Bad bit-depth
+							return ICERR_BADFORMAT;
+					}
 				} else {
-					// Only decode 24-bits
-					if (output->biBitCount != 24)
-						// Bad bit-depth
-						return ICERR_BADFORMAT;
+					// Only RGB out is support
+					return ICERR_BADFORMAT;
 				}
-			} else if (output->biCompression == FOURCC_YUY2) {
-
+			} else if (type == PNGFrameType_YUY2) {
+				if (output->biCompression != FOURCC_YUY2)
+					return ICERR_BADFORMAT;
+			} else if (type == PNGFrameType_YV12) {
+				if (output->biCompression != FOURCC_YV12)
+					return ICERR_BADFORMAT;
 			} else {
 				// Not RGB or YUV
 				return ICERR_BADFORMAT;
 			}
-
 		}
 		return ICERR_OK;
-	}
-	else
-	{
+	
+	}	else {
 		return ICERR_BADFORMAT;
 	}
 	VFW_CODEC_CRASH_CATCHER_END;
@@ -737,14 +924,14 @@ int VFWhandler::VFW_decompress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* 
 int VFWhandler::VFW_decompress_get_format(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output)
 {
 	VFW_CODEC_CRASH_CATCHER_START;
-	if (output != NULL) {
-		output->biSizeImage = input->biSizeImage;
+	if (output != NULL) {		
 		output->biSize = input->biSize;
 		output->biWidth = input->biWidth;
 		output->biHeight = input->biHeight;
 		output->biBitCount = input->biBitCount;
+		output->biSizeImage = input->biSizeImage;
 		// RGB compressed or old-style (RGB Only)?
-		if (input->biSize == sizeof(BITMAPINFOHEADER) 
+		if (input->biSize >= sizeof(BITMAPINFOHEADER) 
 			|| ((CorePNGCodecPrivate *)((BYTE *)input)+sizeof(BITMAPINFOHEADER))->bType == PNGFrameType_RGB24)
 		{
 			output->biCompression = BI_RGB;
@@ -756,8 +943,12 @@ int VFWhandler::VFW_decompress_get_format(BITMAPINFOHEADER* input, BITMAPINFOHEA
 			CorePNGCodecPrivate *codecPrivate = (CorePNGCodecPrivate *)((BYTE *)input)+sizeof(BITMAPINFOHEADER);
 			if (codecPrivate->bType == PNGFrameType_YUY2) {
 				output->biCompression = FOURCC_YUY2;
+				output->biBitCount = 16;
+				output->biSizeImage = output->biWidth * output->biHeight * output->biBitCount;
 			} else if (codecPrivate->bType == PNGFrameType_YV12) {
 				output->biCompression = FOURCC_YV12;
+				output->biBitCount = 12;
+				output->biSizeImage = output->biWidth * output->biHeight * output->biBitCount;
 			} else {
 				return ICERR_BADFORMAT;
 			}
