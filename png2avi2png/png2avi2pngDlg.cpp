@@ -470,7 +470,8 @@ void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 					CString shellCmd = m_pngSaverProgram;
 					CString shellCmdParams = m_pngSaverProgramParam;
 					shellCmdParams.Replace(_T("%1"), outputName_orig);		
-					shellCmdParams.Replace(_T("%2"), outputName_out);		
+					if (shellCmdParams.Replace(_T("%2"), outputName_out) == 0)
+						outputName_out = outputName_orig;
 
 					SHELLEXECUTEINFO shellExec;
 					ZeroMemory(&shellExec, sizeof(SHELLEXECUTEINFO));
@@ -527,6 +528,7 @@ void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 							//statusStr.AppendFormat(_T("Opening '%s' for AVI output\r\n"), m_OutputFilename);
 							//statusDlg->SetDlgItemText(IDC_EDIT1, statusStr);
 
+							{
 							CFile inputFile(outputName_out, CFile::modeRead);
 							if (inputFile.GetLength() < frameBufferSize > 0) {
 								statusStr.AppendFormat(_T("Frame %i was compressed to %i bytes from %i bytes.\r\n"), frameSample, (long)inputFile.GetLength(), frameBufferSize);
@@ -538,6 +540,7 @@ void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 								inputFile.Read(frameBuffer.GetData(), frameBufferSize);	
 							}								
 							inputFile.Close();
+							}
 
 							ret = AVIStreamWrite(outputAVIStream, frameSample, 1, frameBuffer.GetData(), frameBuffer.GetSize(), AVIStreamIsKeyFrame(m_AVIStream, frameSample) ? AVIIF_KEYFRAME : 0, &frameBufferSize, &samplesRead);
 						}
@@ -778,6 +781,7 @@ void Cpng2avi2pngDlg::OnBnClickedButtonOptions()
 	options.SetPngSaverProgram(m_pngSaverProgram, m_pngSaverProgramParam);
 	if (options.DoModal() == IDOK) {
 		m_pngSaverProgram = options.pngSaverProgram;
+		m_pngSaverProgramParam = options.pngSaverProgramParam;
 	}
 }
 

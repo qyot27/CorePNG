@@ -1,4 +1,5 @@
 #pragma once
+#include "afxwin.h"
 
 
 // Cpng2avi2pngOptionsDlg dialog
@@ -10,6 +11,7 @@ class Cpng2avi2pngOptionsDlg : public CDialog
 public:
 	Cpng2avi2pngOptionsDlg(CWnd* pParent = NULL);   // standard constructor
 	virtual ~Cpng2avi2pngOptionsDlg();
+	virtual BOOL OnInitDialog();
 	void SetPngSaverProgram(CString newPngSaverProgram, CString newPngSaverProgramParam) {
 		pngSaverProgram = newPngSaverProgram;		
 		pngSaverProgramParam = newPngSaverProgramParam;
@@ -26,4 +28,8 @@ public:
 	afx_msg void OnEnChangeEditOptionsPngSaver();
 	CString pngSaverProgramParam;
 	afx_msg void OnBnClickedButtonBrowsePngSaver();
+	afx_msg void OnEnChangeEditOptionsPngSaverParam();
+	afx_msg void OnCbnSelchangeComboOptionsPngSaverPresets();
+protected:
+	CComboBox m_PNGSaverPresetComboBox;
 };
