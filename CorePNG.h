@@ -72,13 +72,15 @@ public:
 	virtual HRESULT CheckMediaType(const CMediaType* pmt);
 	virtual STDMETHODIMP Receive(IMediaSample *pSample);
 
-protected:
-	CxImage m_LastImage;
+protected:	
+
 };
 
 class CCorePNGDecoderFilterOutputPin : public CTransformOutputPin {
 public:
-	HRESULT Receive(IMediaSample *pSampleToPass) { return this->m_pInputPin->Receive(pSampleToPass); };
+	HRESULT Receive(IMediaSample *pSampleToPass) { 
+		return this->m_pInputPin->Receive(pSampleToPass);
+	};
 };
 
 class CCorePNGDecoderFilter : public CTransformFilter {
@@ -95,13 +97,19 @@ public:
 	virtual HRESULT SetMediaType(PIN_DIRECTION direction, const CMediaType *pmt);
 	virtual HRESULT Transform(IMediaSample *pIn, IMediaSample *pOut);	
 	HRESULT GetPNGSample(IMediaSample *pSample);
-	HRESULT SetPNGHeader(VIDEOINFOHEADER *pVideoHeader) { memcpy(&m_PNGVideoHeader, pVideoHeader, sizeof(VIDEOINFOHEADER)); return S_OK; };
+	HRESULT SetPNGHeader(VIDEOINFOHEADER *pVideoHeader);
 	static CUnknown * WINAPI CreateInstance(LPUNKNOWN pUnk, HRESULT *pHr);	
 
-protected:	
+protected:
 	HRESULT AlphaBlend(RGBTRIPLE *targetBits);
-	
+	inline HRESULT SubtitleReady(REFERENCE_TIME *pCurrentTimecode) { 
+		if (*pCurrentTimecode >= m_LastTimecode)
+			return S_OK; 
+		return E_PENDING;
+	};
+
 	CCorePNGDecoderFilterPNGInputPin *m_pInputPNGPin;
+	REFERENCE_TIME m_LastTimecode;
 	CxImage m_Image;
 	VIDEOINFOHEADER m_VideoHeader;
 	VIDEOINFOHEADER m_PNGVideoHeader;

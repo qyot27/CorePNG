@@ -459,8 +459,8 @@ CBasePin *CCorePNGDecoderFilter::GetPin(int n)
 HRESULT CCorePNGDecoderFilter::CheckInputType(const CMediaType *mtIn) {
 	if (*mtIn->Type() == MEDIATYPE_Video) {
 		// Ok it's audio...
-		// We need PCM
-		if (*mtIn->Subtype() == MEDIASUBTYPE_PNG) {
+		// We need PNG
+		if (*mtIn->Subtype() == MEDIASUBTYPE_RGB24) {
 			// Yay \o/
 			memcpy(&m_VideoHeader, mtIn->Format(), sizeof(VIDEOINFOHEADER));
 			m_Image.Create(m_VideoHeader.bmiHeader.biWidth, m_VideoHeader.bmiHeader.biHeight, 24);
@@ -578,12 +578,18 @@ HRESULT CCorePNGDecoderFilter::Transform(IMediaSample *pIn, IMediaSample *pOut) 
 	BYTE *pBuffer;
 	pIn->GetPointer(&pBuffer);	
 
+	REFERENCE_TIME rtStart;
+	REFERENCE_TIME rtEnd;
+	pIn->GetTime(&rtStart, &rtEnd);
+
 	BYTE *pOutBuffer;
 	pOut->GetPointer(&pOutBuffer);	
-	m_Image.Decode(pBuffer, lActual, CXIMAGE_FORMAT_PNG);
-	//m_Image.Draw(GetDC(NULL));
-	CopyMemory(pOutBuffer, m_Image.GetBits(), m_VideoHeader.bmiHeader.biSizeImage);
-
+	if (SubtitleReady(&rtStart) == S_OK) {
+		AlphaBlend((RGBTRIPLE *)pBuffer);
+	} else {	
+		//m_Image.Draw(GetDC(NULL));
+		CopyMemory(pOutBuffer, pBuffer, m_VideoHeader.bmiHeader.biSizeImage);
+	}
 	pOut->SetActualDataLength(m_VideoHeader.bmiHeader.biSizeImage);
 
 	return S_OK;
@@ -599,9 +605,24 @@ HRESULT CCorePNGDecoderFilter::GetPNGSample(IMediaSample *pSample)
   HRESULT hr = S_OK;
   ASSERT(pSample);
 
+	REFERENCE_TIME rtEnd;
+	pSample->GetTime(&m_LastTimecode, &rtEnd);
 	// Decode the sample here
+	LONG lActual = pSample->GetActualDataLength();
+
+	BYTE *pBuffer;
+	pSample->GetPointer(&pBuffer);
+
+	m_Image.Decode(pBuffer, lActual, CXIMAGE_FORMAT_PNG);
 
 	return S_OK;
+};
+
+HRESULT CCorePNGDecoderFilter::SetPNGHeader(VIDEOINFOHEADER *pVideoHeader) 
+{
+	memcpy(&m_PNGVideoHeader, pVideoHeader, sizeof(VIDEOINFOHEADER));
+	m_Image.Create(m_PNGVideoHeader.bmiHeader.biWidth, m_PNGVideoHeader.bmiHeader.biHeight, 24); 
+	return S_OK; 
 };
 
 HRESULT CCorePNGDecoderFilter::AlphaBlend(RGBTRIPLE *targetBits)
