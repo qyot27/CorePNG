@@ -284,7 +284,7 @@ void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 								LONG frameDataSize = frameBufferSize;
 								PNGParser parser(CMemFile(frameData, frameDataSize));
 								CString outputName;		
-								outputName.Format(outputFilenameFormatStr, frameSample, AVIStreamIsKeyFrame(m_AVIStream, frameSample) ? _T("K") : _T("D"), _T("RGB"));
+								outputName.Format(outputFilenameFormatStr, frameSample, AVIStreamIsKeyFrame(m_AVIStream, frameSample) ? _T("Key") : _T("Delta"), _T("RGB"));
 								outputName = m_OutputFilename + outputName;
 
 								CFile output(outputName, CFile::modeCreate|CFile::modeWrite);
@@ -367,6 +367,17 @@ void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 			PAVISTREAM outputAVIStream;
 			AVISTREAMINFO outputAVIStreamInfo;
 
+			CString inputPNGFilename;
+			m_InputList.GetText(0, inputPNGFilename);
+			CFile currentPNGFile(inputPNGFilename, CFile::modeRead);
+			PNGParser currentPNG(currentPNGFile);
+			if (currentPNG.size == 0) {
+				CString err;
+				err.Format(_T("PNG Parsing failed for: '%s'"), inputPNGFilename);
+				MessageBox(err);
+				return;
+			}
+
 			ret = AVIFileOpen(&outputAVIFile, m_OutputFilename, OF_CREATE|OF_WRITE|OF_SHARE_DENY_WRITE, 0L);
 			if (ret != AVIERR_OK) {
 				CString err;
@@ -381,13 +392,70 @@ void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 			outputAVIStreamInfo.dwQuality	= 10000;
 			outputAVIStreamInfo.dwRate = 1000000;
 			outputAVIStreamInfo.dwScale = 33366;
+			outputAVIStreamInfo.rcFrame.right = currentPNG.width;
+			outputAVIStreamInfo.rcFrame.bottom = currentPNG.height;
 			lstrcpy(outputAVIStreamInfo.szName, _T("Video #1"));
 			ret = AVIFileCreateStream(outputAVIFile, &outputAVIStream, &outputAVIStreamInfo);
 			if (ret != AVIERR_OK) {
 				MessageBox(_T("AVIFileCreateStream failed"));
 				return;
 			}
-			ret = AVIStreamSetFormat(outputAVIStream, 0, 0, 0);
+
+			BITMAPINFO bmh[2];
+			ZeroMemory(bmh, sizeof(BITMAPINFO)*2);
+			bmh->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+			bmh->bmiHeader.biCompression = MAKE_FOURCC("PNG1");
+			bmh->bmiHeader.biBitCount = currentPNG.bitdepth;			
+			bmh->bmiHeader.biWidth = currentPNG.width;
+			bmh->bmiHeader.biHeight = currentPNG.height;
+
+			ret = AVIStreamSetFormat(outputAVIStream, 0, bmh, bmh->bmiHeader.biSize);
+			if (ret != AVIERR_OK) {
+				MessageBox(_T("AVIStreamSetFormat failed"));
+				return;
+			}
+
+			// Now add the PNG frames
+			CByteArray frameBuffer;
+			LONG lSamplesWritten = 0;
+			LONG lBytesWritten = 0;
+			for (int f = 0; f < m_InputList.GetCount(); f++) {
+				m_InputList.GetText(f, inputPNGFilename);
+				currentPNGFile.Close();
+				currentPNGFile.Open(inputPNGFilename, CFile::modeRead);
+				currentPNG = PNGParser(currentPNGFile);
+				if (currentPNG.size == 0) {
+					CString err;
+					err.Format(_T("PNG Parsing failed for: '%s'"), inputPNGFilename);
+					MessageBox(err);
+				}
+				currentPNGFile.SeekToBegin();
+				if (frameBuffer.GetSize() < currentPNG.size) {
+					//wxLogDebug(_T("\nFrame Buffer was too small for AVIStreamRead.\n"));
+					frameBuffer.SetSize(currentPNG.size, currentPNG.size+1);
+				}
+				currentPNGFile.Read(frameBuffer.GetData(), currentPNG.size);
+				int keyFrame = AVIIF_KEYFRAME;
+				if (inputPNGFilename.Find(_T("Delta")) > -1)
+					keyFrame = 0;
+
+				ret = AVIStreamWrite(outputAVIStream, f, 1, frameBuffer.GetData(), currentPNG.size, keyFrame, &lSamplesWritten, &lBytesWritten);
+				if (ret != AVIERR_OK) {
+					MessageBox(_T("AVIStreamWrite failed"));
+					break;
+				}
+			}
+
+			ret = AVIStreamClose(outputAVIStream);
+			if (ret != AVIERR_OK) {
+				MessageBox(_T("AVIStreamClose failed"));
+				return;
+			}
+			ret = AVIFileClose(outputAVIFile);
+			if (ret != AVIERR_OK) {
+				MessageBox(_T("AVIFileClose failed"));
+				return;
+			}
 		}
 	} else {
 		// We need to stop the processing
@@ -414,7 +482,10 @@ void Cpng2avi2pngDlg::OnBnClickedButtonAdd()
 		input.m_pOFN->nMaxFile = 1024*1024;
 		if (input.DoModal() == IDOK) {
 			CString baseFolder = fileBuffer;
-			TCHAR *currentFile = fileBuffer+baseFolder.GetLength()+1;
+			if (baseFolder[baseFolder.GetLength()] != _T('\\'))
+				 baseFolder += _T("\\");
+
+			TCHAR *currentFile = fileBuffer+baseFolder.GetLength();
 			while (currentFile[0] != 0 && currentFile[1] != 0) {
 				m_InputList.AddString(baseFolder+currentFile);
 				currentFile += lstrlen(currentFile);
@@ -423,6 +494,18 @@ void Cpng2avi2pngDlg::OnBnClickedButtonAdd()
 		}
 		delete [] fileBuffer;
 	}
+	// Expand the listbox to show all the filename string
+	CString inputStr;
+	CSize size;
+	LONG largestWidth = 0;
+	CDC *hDC = m_InputList.GetDC();
+	for (int f = 0; f < m_InputList.GetCount(); f++) {
+		m_InputList.GetText(f, inputStr);
+		size = hDC->GetTextExtent(inputStr);		
+		if (largestWidth < size.cx)
+			largestWidth = size.cx;
+	}	
+	m_InputList.SetHorizontalExtent(largestWidth);
 }
 
 void Cpng2avi2pngDlg::OnBnClickedButtonRemove()
