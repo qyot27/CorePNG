@@ -171,8 +171,28 @@ int VFWhandler::CompresssDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2)
 			m_DeltaFrameCount = 0;
 
 	} else {
-		// We only support delta-frames with 24-bit compression
-		return ICERR_ERROR;
+		if (m_DropFrameThreshold != 0) {
+			DWORD imageDiff = abs(memcmp(m_DeltaFrame.GetBits(), lParam1->lpInput, lActual));
+			if (imageDiff < m_DropFrameThreshold) {
+				// Drop this frame
+				lParam1->lpbiOutput->biSizeImage = 0;
+				lParam1->dwFlags = 0;
+				*lParam1->lpdwFlags = 0;	
+				// Increase the delta-frame count even though we drop this frame
+				m_DeltaFrameCount++;
+
+				return ICERR_OK;
+			}
+		}
+		m_Image.CreateFromARGB(lParam1->lpbiInput->biWidth, lParam1->lpbiInput->biHeight, (BYTE *)lParam1->lpInput);
+
+		// Compare to the previous frame
+		m_Image.Mix(m_DeltaFrame, CxImage::ImageOpType::OpSub2);
+
+		// Replace the delta frame with the full frame
+		memcpy(m_DeltaFrame.GetBits(), lParam1->lpInput, lActual);
+		if (m_DeltaFrameCount++ > m_DeltaFrameLimit)
+			m_DeltaFrameCount = 0;
 	}
 	CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
 	m_Image.Encode(&memFile);	
