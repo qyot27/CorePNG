@@ -182,7 +182,7 @@ void VFWhandler::CompressYV12DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBu
 	BYTE *V_Delta_data = (BYTE *)V_Channel_Delta.GetBits();
 
 	for (DWORD d = 0; d < Y_Channel.GetSizeImage(); d++)
-		Y_data++[0] = Y_Delta_data++[0] - inputYUV2Data++[0];
+		Y_data++[0] = inputYUV2Data++[0] - Y_Delta_data++[0];
 		
 	for (DWORD d = 0; d < V_Channel.GetSizeImage(); d++)
 		V_data++[0] = inputYUV2Data++[0] - V_Delta_data++[0];
@@ -959,6 +959,10 @@ int VFWhandler::DecompressYUY2Frame(ICDECOMPRESS* lParam1)
 		U_Channel.Decode(&memFile);		
 		V_Channel.Decode(&memFile);		
 		
+		//Y_Channel.Save("D:\\Y_orig.png", CXIMAGE_FORMAT_PNG);
+		//U_Channel.Save("D:\\U_orig.png", CXIMAGE_FORMAT_PNG);
+		//V_Channel.Save("D:\\V_orig.png", CXIMAGE_FORMAT_PNG);
+
 		//Y_Channel.Draw(GetDC(NULL));
 		//U_Channel.Draw(GetDC(NULL));
 		//V_Channel.Draw(GetDC(NULL));
@@ -1075,13 +1079,13 @@ int VFWhandler::DecompressYV12Frame(ICDECOMPRESS* lParam1)
 			BYTE *V_Delta_data = (BYTE *)V_Channel_Delta.GetBits();
 
 			for (DWORD d = 0; d < Y_Channel.GetSizeImage(); d++)
-				Y_data[0] = Y_data++[0] + Y_Delta_data++[0];
+				Y_data[d] = Y_data[d] + Y_Delta_data[d];
 			
 			for (DWORD d = 0; d < U_Channel.GetSizeImage(); d++)
-				U_data[0] = U_data++[0] + U_Delta_data++[0];
+				U_data[d] = U_data[d] + U_Delta_data[d];
 			
 			for (DWORD d = 0; d < V_Channel.GetSizeImage(); d++)
-				V_data[0] = U_data++[0] + V_Delta_data++[0];
+				V_data[d] = V_data[d] + V_Delta_data[d];
 
 			// Copy and Compare to the previous frame
 			/*for (DWORD height = 0; height < Y_Channel.GetHeight()*2; height++) {
@@ -1108,6 +1112,69 @@ int VFWhandler::DecompressYV12Frame(ICDECOMPRESS* lParam1)
 		
 		
 		//memset(lParam1->lpOutput, 0, lParam1->lpbiOutput->biSizeImage);	
+	} else if (m_Output_Mode == PNGOutputMode_RGB24) {
+		// Double-check the output fourcc
+		assert(lParam1->lpbiOutput->biCompression == BI_RGB);
+
+		// Preserve the previous frame
+		if (lParam1->dwFlags == ICDECOMPRESS_NOTKEYFRAME) {
+			Y_Channel_Delta = Y_Channel;
+			U_Channel_Delta = U_Channel;
+			V_Channel_Delta = V_Channel;
+		}
+
+		// Now decompress the frame.
+		CxMemFile memFile((BYTE *)lParam1->lpInput, lActual);
+		Y_Channel.Decode(&memFile);		
+		U_Channel.Decode(&memFile);		
+		V_Channel.Decode(&memFile);		
+		
+		//Y_Channel.Draw(GetDC(NULL));
+		//U_Channel.Draw(GetDC(NULL));
+		//V_Channel.Draw(GetDC(NULL));
+
+		if (lParam1->dwFlags == ICDECOMPRESS_NOTKEYFRAME) {
+			// Mix the old image and the new image together
+			BYTE *Y_data = (BYTE *)Y_Channel.GetBits();
+			BYTE *U_data = (BYTE *)U_Channel.GetBits();
+			BYTE *V_data = (BYTE *)V_Channel.GetBits();
+
+			BYTE *Y_Delta_data = (BYTE *)Y_Channel_Delta.GetBits();
+			BYTE *U_Delta_data = (BYTE *)U_Channel_Delta.GetBits();
+			BYTE *V_Delta_data = (BYTE *)V_Channel_Delta.GetBits();
+
+			for (DWORD d = 0; d < Y_Channel.GetSizeImage(); d++)
+				Y_data[d] = Y_data[d] + Y_Delta_data[d];
+			
+			for (DWORD d = 0; d < U_Channel.GetSizeImage(); d++)
+				U_data[d] = U_data[d] + U_Delta_data[d];
+			
+			for (DWORD d = 0; d < V_Channel.GetSizeImage(); d++)
+				V_data[d] = U_data[d] + V_Delta_data[d];
+
+			// Copy and Compare to the previous frame
+			/*for (DWORD height = 0; height < Y_Channel.GetHeight()*2; height++) {
+				for (DWORD width = 0; width < Y_Channel.GetWidth(); width += 4) {
+					Y_data++[0] = Y_data[width+0] + Y_Delta_data++[0];
+					U_data++[0] = U_data[width+1] + U_Delta_data++[0];
+					Y_data++[0] = Y_data[width+2] + Y_Delta_data++[0];
+					V_data++[0] = V_data[width+3] + V_Delta_data++[0];					
+				}				
+			}		*/
+
+			Y_Channel_Delta = Y_Channel;
+			U_Channel_Delta = U_Channel;
+			V_Channel_Delta = V_Channel;
+		}				
+
+		//Y_Channel.Save("D:\\Y_orig_yv12.png", CXIMAGE_FORMAT_PNG);
+		//U_Channel.Save("D:\\U_orig_yv12.png", CXIMAGE_FORMAT_PNG);
+		//V_Channel.Save("D:\\V_orig_yv12.png", CXIMAGE_FORMAT_PNG);
+		CxImage notSupported(Y_Channel);
+		notSupported.Flip();
+		notSupported.IncreaseBpp(24);		
+		memcpy(lParam1->lpOutput, notSupported.GetBits(), notSupported.GetSizeImage());
+		//YV12toRGB24_Resample(Y_Channel, U_Channel, V_Channel, (BYTE *)lParam1->lpOutput, 3);
 	} else {
 		return ICERR_UNSUPPORTED;
 	}
@@ -1159,6 +1226,11 @@ int VFWhandler::VFW_decompress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* 
 					return ICERR_BADFORMAT;
 				}
 			} else if (type == PNGFrameType_YV12) {
+				if (output->biCompression == BI_RGB && output->biBitCount == 24) {
+					// Final output needs to be in RGB24
+					m_Output_Mode = PNGOutputMode_RGB24;
+					return ICERR_OK;
+				}
 				if (output->biCompression != FOURCC_YV12) {
 					//output->biCompression = FOURCC_YV12;
 					return ICERR_BADFORMAT;
@@ -1266,8 +1338,15 @@ int VFWhandler::VFW_decompress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* 
 		}
 
 	} else if (m_CodecPrivate.bType == PNGFrameType_YV12) {
-		if (output->biCompression != FOURCC_YV12)
+		if (output->biCompression == FOURCC_YV12) {
+			// Normal output
+			m_Output_Mode = PNGOutputMode_None;
+		} else if (output->biCompression == BI_RGB && output->biBitCount == 24) {
+			// Final output needs to be in RGB24
+			m_Output_Mode = PNGOutputMode_RGB24;			
+		} else {
 			return ICERR_BADFORMAT;
+		}
 	}
 
 	m_Image.Create(input->biWidth, input->biHeight, 24);
@@ -1749,4 +1828,79 @@ void CorePNG_SetRegistryValue(char *value_key, DWORD the_value)
 	//char *err_key = new char[1024];
 	//FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, 0, temp, 0, err_key, 1024, NULL); 
 	RegCloseKey(key_handle);
+};
+
+void YV12toRGB24(BYTE *pInput, BYTE *pOutput, DWORD dwWidth, DWORD dwHeight)
+{
+/*
+	YV12 to RGB24 conversion routine
+	; YUY 16-235 -> RGB
+	; D:= Y - 16
+	; E= U - 128
+	; F:= V - 128
+	; B:= 1.164*D + 2.018*E
+	; G:= 1.164*D - 0.391*E - 0.813*F 
+	; R:= 1.164*D           - 1.596*F
+*/	
+	/*
+	BYTE* lpYV12Src = pInput;
+	BYTE* lpYV12SrcY = pInput + (dwHeight * dwWidth);
+	BYTE* lpYV12SrcU = pInput + (dwHeight/2 * dwWidth/2);
+	BYTE* lpYV12SrcV = pInput + (dwHeight/2 * dwWidth/2);
+	RGBTRIPLE* lprgbDst = (RGBTRIPLE *)pOutput;
+
+	for (DWORD y = 0; y < dwHeight; y++) {
+		for (DWORD x = 0; x < dwWidth; x++) {			
+			BYTE D = lpYV12SrcY[x] - 16;
+			BYTE E = lpYV12SrcU[x] - 128;
+			BYTE F = lpYV12SrcV[x] - 128;
+			lprgbDst[x].rgbtBlue = 1.164*D + 2.018*E;
+			lprgbDst[x].rgbtGreen = 1.164*D - 0.391*E - 0.813*F;
+			lprgbDst[x].rgbtRed = 1.164*D - 1.596*F;
+		}
+		// Move to next scan line.
+		//lpYV12Src = ((LPBYTE)lpYV12Src + dwWidthBytes);		
+		lprgbDst  = (RGBTRIPLE *)((LPBYTE)lprgbDst  + dwWidthBytes);
+	}
+	*/
+};
+
+void YV12toRGB24_Resample(CxImage &Y_plane, CxImage &U_plane, CxImage &V_plane, BYTE *pOutput, WORD wMethod)
+{
+/*
+	YV12 to RGB24 conversion routine
+	; YUY 16-235 -> RGB
+	; D:= Y - 16
+	; E= U - 128
+	; F:= V - 128
+	; B:= 1.164*D + 2.018*E
+	; G:= 1.164*D - 0.391*E - 0.813*F 
+	; R:= 1.164*D           - 1.596*F
+*/	
+	// Upsample the UV channels
+	U_plane.Resample(Y_plane.GetWidth(), Y_plane.GetHeight(), 1);
+	V_plane.Resample(Y_plane.GetWidth(), Y_plane.GetHeight(), 1);
+
+	//U_plane.Negative();
+	//V_plane.Negative();
+	//Y_plane.Draw(GetDC(NULL));
+	//U_plane.Draw(GetDC(NULL));
+	//V_plane.Draw(GetDC(NULL));
+
+	RGBTRIPLE* lprgbDst = (RGBTRIPLE *)pOutput;
+	DWORD dwWidthBytes = Y_plane.GetWidth() * 3;
+
+	for (DWORD y = 0; y < Y_plane.GetHeight(); y++) {
+		for (DWORD x = 0; x < Y_plane.GetWidth(); x++) {			
+			BYTE D = Y_plane.GetPixelGray(x, y) - 16;
+			BYTE E = U_plane.GetPixelGray(x, y) - 128;
+			BYTE F = V_plane.GetPixelGray(x, y) - 128;
+			lprgbDst[x].rgbtBlue = 1.164*D + 2.018*E;
+			lprgbDst[x].rgbtGreen = 1.164*D - 0.391*E - 0.813*F;
+			lprgbDst[x].rgbtRed = 1.164*D - 1.596*F;
+		}
+		// Move to next scan line.
+		//lpYV12Src = ((LPBYTE)lpYV12Src + dwWidthBytes);		
+		lprgbDst = (RGBTRIPLE *)((LPBYTE)lprgbDst + dwWidthBytes);
+	}
 };

@@ -99,9 +99,14 @@
 				LinkIncremental="1"
 				ModuleDefinitionFile="driverproc.def"
 				GenerateDebugInformation="TRUE"
+				GenerateMapFile="TRUE"
+				MapFileName="$(OutDir)/$(ProjectName).map"
+				MapExports="TRUE"
+				MapLines="TRUE"
 				SubSystem="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
+				SupportUnloadOfDelayLoadedDLL="FALSE"
 				TargetMachine="1"/>
 			<Tool
 				Name="VCMIDLTool"/>

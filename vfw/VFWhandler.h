@@ -214,5 +214,8 @@ WORD AddTooltip(HWND hwndTooltip, HWND hwndClient, LPSTR strText);
 DWORD CorePNG_GetRegistryValue(char *value_key, DWORD default_value);
 void CorePNG_SetRegistryValue(char *value_key, DWORD the_value);
 
+void YV12toRGB24(BYTE *pInput, BYTE *pOutput, DWORD dwWidth, DWORD dwHeight);
+void YV12toRGB24_Resample(CxImage &Y_plane, CxImage &U_plane, CxImage &V_plane, BYTE *pOutput, WORD wMethod);
+
 #endif // __VFW_HANDLER_H_
 
