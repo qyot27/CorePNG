@@ -38,6 +38,7 @@
 #include <commctrl.h>
 #include <vfw.h>
 #include <assert.h>
+#include <process.h>
 #include "ximage.h"
 #include "ximapng.h"
 
@@ -87,6 +88,18 @@ struct CorePNGCodecSettings {
 	BYTE m_DeltaFramesEnabled;
 	BYTE m_DeltaFrameAuto;
 	WORD m_DeltaFrameLimit;
+	BYTE m_EnableMultiThreading;
+};
+
+class VFWhandler;
+
+struct DeltaThreadInfo {	
+	VFWhandler *handler;
+	bool bRunning;	
+	DWORD DeltaFrameSize;
+	CRITICAL_SECTION csFrameData;
+	//CRITICAL_SECTION csThreadBlock;
+	ICCOMPRESS frameData;
 };
 
 class VFWhandler : public CorePNGCodecSettings
@@ -123,7 +136,10 @@ public:
 	int VFW_decompress_end(int lParam1, int lParam2);
 
 	BOOL ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	
+	inline int CompressDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2);
 protected:
+	static void DeltaFrameCompressThread(void *threadData);
 	inline bool CreateYUY2(BITMAPINFOHEADER* input);
 	inline void CompressYUY2KeyFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
 	inline void CompressYUY2DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
@@ -132,8 +148,7 @@ protected:
 	inline void CompressYV12KeyFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
 	inline void CompressYV12DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
 
-	inline int CompressKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2);
-	inline int CompressDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2);
+	inline int CompressKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2);	
 	inline int CompressDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2);
 	inline RGBQUAD AveragePixels(DWORD x, DWORD y);
 	
@@ -163,6 +178,7 @@ protected:
 	CxImagePNG Y_Channel_Delta;		
 	CxImagePNG U_Channel_Delta;		
 	CxImagePNG V_Channel_Delta;
+	DeltaThreadInfo *m_threadInfo;
 };
 
 BOOL CALLBACK ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);

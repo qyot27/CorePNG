@@ -193,7 +193,7 @@ void VFWhandler::CompressYV12DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBu
 	BYTE *V_Delta_data = (BYTE *)V_Channel_Delta.GetBits();
 
 	for (DWORD d = 0; d < Y_Channel.GetSizeImage(); d++)
-		Y_data++[0] = inputYUV2Data++[0] - Y_Delta_data++[0];
+		Y_data++[0] = Y_Delta_data++[0] - inputYUV2Data++[0];
 		
 	for (DWORD d = 0; d < V_Channel.GetSizeImage(); d++)
 		V_data++[0] = inputYUV2Data++[0] - V_Delta_data++[0];
@@ -247,6 +247,7 @@ void VFWhandler::LoadSettings() {
 	m_DeltaFrameLimit = CorePNG_GetRegistryValue("Keyframe Interval", 30);
 	m_DropFrameThreshold = CorePNG_GetRegistryValue("Drop Frame Threshold", 0);
 	m_DecodeToRGB24 = CorePNG_GetRegistryValue("Always Decode to RGB24", 0);
+	m_EnableMultiThreading  = CorePNG_GetRegistryValue("Multi-threading", 0);
 }
 
 void VFWhandler::SaveSettings() {	
@@ -257,6 +258,7 @@ void VFWhandler::SaveSettings() {
 	CorePNG_SetRegistryValue("Keyframe Interval", m_DeltaFrameLimit);	
 	CorePNG_SetRegistryValue("Drop Frame Threshold", m_DropFrameThreshold);
 	CorePNG_SetRegistryValue("Always Decode to RGB24", m_DecodeToRGB24);
+	CorePNG_SetRegistryValue("Multi-threading", m_EnableMultiThreading);
 }
 
 /******************************************************************************
@@ -489,10 +491,15 @@ int VFWhandler::CompressDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2)
 	void* VFW_Buffer = NULL;
 	DWORD DeltaFrameSize = -1;
 	DWORD KeyFrameSize = -1;
-	if (CompressDeltaFrame(lParam1, lParam2) == ICERR_OK) {
-		DeltaFrameSize = lParam1->lpbiOutput->biSizeImage;		
+	if (m_EnableMultiThreading) {				
+		memcpy(&m_threadInfo->frameData, lParam1, sizeof(ICCOMPRESS));
+		LeaveCriticalSection(&m_threadInfo->csFrameData);
 	} else {
-		return CompressKeyFrame(lParam1, lParam2);
+		if (CompressDeltaFrame(lParam1, lParam2) == ICERR_OK) {
+			DeltaFrameSize = lParam1->lpbiOutput->biSizeImage;		
+		} else {
+			return CompressKeyFrame(lParam1, lParam2);
+		}
 	}
 
 	VFW_Buffer = lParam1->lpOutput;
@@ -501,6 +508,14 @@ int VFWhandler::CompressDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2)
 		// Restore the origanl VW buffer
 		lParam1->lpOutput = VFW_Buffer;
 		KeyFrameSize = lParam1->lpbiOutput->biSizeImage;
+		
+		if (m_EnableMultiThreading) {
+			// Ok, wait till the other thread is done compressing
+			EnterCriticalSection(&m_threadInfo->csFrameData);
+			DeltaFrameSize = m_threadInfo->DeltaFrameSize;
+			m_threadInfo->DeltaFrameSize = -1;
+		}
+
 		if (KeyFrameSize < DeltaFrameSize) {
 			// Keyframe is smaller than a delta frame
 			// Replace the delta frame data in the VFW buffer with ours
@@ -520,6 +535,26 @@ int VFWhandler::CompressDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2)
 
 	return ICERR_OK;
 };
+
+void VFWhandler::DeltaFrameCompressThread(void *threadData)
+{
+	DeltaThreadInfo *threadInfo = (DeltaThreadInfo *)threadData;
+	
+	while (threadInfo->bRunning) {
+		while (threadInfo->DeltaFrameSize != -1);
+		//EnterCriticalSection(&threadInfo->csThreadBlock);
+		EnterCriticalSection(&threadInfo->csFrameData);
+		threadInfo->handler->CompressDeltaFrame(&threadInfo->frameData, 1);
+		LeaveCriticalSection(&threadInfo->csFrameData);
+		//LeaveCriticalSection(&threadInfo->csThreadBlock);
+	}
+
+	DeleteCriticalSection(&threadInfo->csFrameData);
+	//DeleteCriticalSection(&threadInfo->csThreadBlock);
+	delete threadInfo;
+	_endthread();
+};
+
 /******************************************************************************
 * VFW_compress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output);
 *
@@ -573,7 +608,7 @@ int VFWhandler::VFW_compress_get_format(BITMAPINFOHEADER* input, BITMAPINFOHEADE
 	output->biWidth = input->biWidth;
 	output->biHeight = input->biHeight;
 	output->biCompression = FOURCC_PNG;
-	output->biClrUsed = input->biBitCount;
+	output->biPlanes = input->biPlanes;
 	output->biBitCount = input->biBitCount;
 
 	CorePNGCodecPrivate *codecPrivate = (CorePNGCodecPrivate *)(((BYTE *)output)+sizeof(BITMAPINFOHEADER));
@@ -659,6 +694,19 @@ int VFWhandler::VFW_compress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* ou
 		m_Image.SetCompressionLevel(m_ZlibCompressionLevel);
 	}
 	m_DeltaFrameCount = 0;
+
+	if (m_EnableMultiThreading) {
+		m_threadInfo = new DeltaThreadInfo;
+		InitializeCriticalSection(&m_threadInfo->csFrameData);
+		m_threadInfo->bRunning = true;
+		m_threadInfo->handler = this;
+		m_threadInfo->DeltaFrameSize = -1;
+		_beginthread(DeltaFrameCompressThread, 0, (void *)m_threadInfo);
+		
+		// Block the thread until we really need it
+		EnterCriticalSection(&m_threadInfo->csFrameData);
+	}
+
 	//mycodec->Configure(*myconfig);	
 	return ICERR_OK;
 
@@ -674,6 +722,12 @@ int VFWhandler::VFW_compress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* ou
 
 int VFWhandler::VFW_compress_end(int lParam1, int lParam2)
 {
+	if (m_EnableMultiThreading) {				
+		// We leave the thread to exit itself
+		LeaveCriticalSection(&m_threadInfo->csFrameData);
+		m_threadInfo->bRunning = false;				
+		m_threadInfo = NULL;
+	}
 	//mycodec.flush();
 	return ICERR_OK;
 }
@@ -982,8 +1036,9 @@ int VFWhandler::VFW_decompress_get_format(BITMAPINFOHEADER* input, BITMAPINFOHEA
 		output->biSize = input->biSize;
 		output->biWidth = input->biWidth;
 		output->biHeight = input->biHeight;
+		output->biPlanes = input->biPlanes;
 		output->biBitCount = input->biBitCount;
-		output->biSizeImage = input->biSizeImage;
+		output->biSizeImage = input->biSizeImage;		
 		// RGB compressed or old-style (RGB Only)?
 		if (input->biSize >= sizeof(BITMAPINFOHEADER) 
 			|| ((CorePNGCodecPrivate *)((BYTE *)input)+sizeof(BITMAPINFOHEADER))->bType == PNGFrameType_RGB24)
