@@ -476,7 +476,7 @@ HRESULT CCorePNGDecoderFilter::DecideBufferSize(IMemAllocator *pAlloc, ALLOCATOR
 };
 
 HRESULT CCorePNGDecoderFilter::GetMediaType(int iPosition, CMediaType *pMediaType) {
-	ASSERT(iPosition == 0 || iPosition == 1);
+	ASSERT(iPosition == 0 || iPosition == 1 || iPosition == 2);
 
 	if (iPosition == 0) {
 		CheckPointer(pMediaType, E_POINTER);

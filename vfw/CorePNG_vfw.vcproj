@@ -19,7 +19,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\;;..\CxImage\CxImage\"
+				AdditionalIncludeDirectories="..\;..\CxImage\CxImage\;..\CxImage\png\;..\CxImage\zlib\"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL"
 				MinimalRebuild="TRUE"
 				BasicRuntimeChecks="3"
@@ -36,7 +36,7 @@
 				Outputs="C:\windows\system32\$(TargetFileName)"/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="comctl32.lib winmm.lib ..\CxImage\CxImage\CxImageDLL\Release\CxImageCrtDll_png_static.lib"
+				AdditionalDependencies="comctl32.lib winmm.lib ..\CxImage\CxImage\CxImageDLL\Debug\CxImageCrtDll_png_static_debug.lib"
 				OutputFile="$(OutDir)/CorePNG_vfw.dll"
 				LinkIncremental="2"
 				ModuleDefinitionFile="driverproc.def"
@@ -75,7 +75,7 @@
 				OmitFramePointers="TRUE"
 				EnableFiberSafeOptimizations="TRUE"
 				OptimizeForProcessor="2"
-				AdditionalIncludeDirectories="..\;..\CxImage\CxImage\"
+				AdditionalIncludeDirectories="..\;..\CxImage\CxImage\;..\CxImage\png\;..\CxImage\zlib\"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL"
 				StringPooling="TRUE"
 				RuntimeLibrary="0"

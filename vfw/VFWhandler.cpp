@@ -24,12 +24,16 @@ VFWhandler::~VFWhandler(void)
 }
 
 void VFWhandler::LoadSettings() {
+	m_ZlibCompressionLevel = CorePNG_GetRegistryValue("zlib Compression Level", 6);
+	m_PNGFilters = CorePNG_GetRegistryValue("PNG Filters", PNG_ALL_FILTERS);
 	m_DeltaFramesEnabled = CorePNG_GetRegistryValue("Use Delta Frames", 0);
 	m_DecodeToRGB24 = CorePNG_GetRegistryValue("Always Decode to RGB24", 0);
 	m_DropFrameThreshold = CorePNG_GetRegistryValue("Drop Frame Threshold", 0);
 }
 
 void VFWhandler::SaveSettings() {
+	CorePNG_SetRegistryValue("zlib Compression Level", m_ZlibCompressionLevel);
+	CorePNG_SetRegistryValue("PNG Filters", m_PNGFilters);
 	CorePNG_SetRegistryValue("Use Delta Frames", m_DeltaFramesEnabled);
 	CorePNG_SetRegistryValue("Always Decode to RGB24", m_DecodeToRGB24);
 	CorePNG_SetRegistryValue("Drop Frame Threshold", m_DropFrameThreshold);
@@ -91,22 +95,25 @@ int VFWhandler::VFW_compress(ICCOMPRESS* lParam1, DWORD lParam2)
 		}
 		if (lActual != 0) {
 			CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
-			m_Image.Encode(&memFile, CXIMAGE_FORMAT_PNG);	
+			m_Image.Encode(&memFile);	
 			//m_Image.Draw(GetDC(NULL));
 
 			lActual = memFile.Tell();	
 		}
 		// Now put the result back	
 		lParam1->lpbiOutput->biSizeImage = lActual;
-		lParam1->lpbiOutput->biCompression = FOURCC_PNG;
+		//lParam1->lpbiOutput->biCompression = FOURCC_PNG;
 		lParam1->dwFlags = ICCOMPRESS_KEYFRAME;
 		*lParam1->lpdwFlags = AVIIF_KEYFRAME;
 	} else {
 		// We compress a delta frame
 		if (lParam1->lpbiInput->biBitCount == 24) {
 			memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
-			m_Image.AlphaClear();
-			m_Image.AlphaCreate();
+			if (!m_Image.AlphaIsValid())
+				m_Image.AlphaCreate();
+			else
+				m_Image.AlphaClear();
+			
 			// Compare to the previous frame
 			RGBQUAD previousPixel;
 			RGBQUAD currentPixel;
@@ -130,18 +137,18 @@ int VFWhandler::VFW_compress(ICCOMPRESS* lParam1, DWORD lParam2)
 			return ICERR_ERROR;
 		}
 		CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
-		m_Image.Encode(&memFile, CXIMAGE_FORMAT_PNG);	
+		m_Image.Encode(&memFile);	
 		//m_Image.Draw(GetDC(NULL));
 
 		lActual = memFile.Tell();	
 
 		// Now put the result back	
 		lParam1->lpbiOutput->biSizeImage = lActual;
-		lParam1->lpbiOutput->biSize = sizeof(BITMAPINFOHEADER);
-		lParam1->lpbiOutput->biWidth = lParam1->lpbiInput->biWidth;
-		lParam1->lpbiOutput->biHeight = lParam1->lpbiInput->biWidth;
-		lParam1->lpbiOutput->biCompression = FOURCC_PNG;
-		lParam1->lpbiOutput->biClrUsed = 0;
+		//lParam1->lpbiOutput->biSize = sizeof(BITMAPINFOHEADER);
+		//lParam1->lpbiOutput->biWidth = lParam1->lpbiInput->biWidth;
+		//lParam1->lpbiOutput->biHeight = lParam1->lpbiInput->biWidth;
+		//lParam1->lpbiOutput->biCompression = FOURCC_PNG;
+		//lParam1->lpbiOutput->biClrUsed = 0;
 		lParam1->dwFlags = 0;
 		*lParam1->lpdwFlags = 0;
 	}
@@ -248,6 +255,12 @@ int VFWhandler::VFW_compress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* ou
 	VFW_CODEC_CRASH_CATCHER_START;
 
 	m_Image.Create(input->biWidth, input->biHeight, 24);
+	if (m_ZlibCompressionLevel == 0) {
+		m_Image.SetCompressionFilters(PNG_NO_FILTERS);
+	}
+
+	m_Image.SetCompressionLevel(m_ZlibCompressionLevel);
+
 	m_DeltaFrameCount = 0;
 	//mycodec->Configure(*myconfig);	
 	return ICERR_OK;
@@ -281,7 +294,8 @@ int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 	DWORD lActual = lParam1->lpbiInput->biSizeImage;
 
 	// Now decompress the frame.
-	m_Image.Decode((BYTE *)lParam1->lpInput, lActual, CXIMAGE_FORMAT_PNG);		
+	CxMemFile memFile((BYTE *)lParam1->lpInput, lActual);
+	m_Image.Decode(&memFile);		
 
 	//lParam1->lpbiOutput->biSizeImage = lParam1->lpbiInput->biWidth * lParam1->lpbiInput->biHeight * (lParam1->lpbiInput->biBitCount / 8);
 
@@ -556,6 +570,30 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 			
 			SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_SETRANGE, 0, (LPARAM)MAKELONG(UD_MAXVAL, 0));
 			SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_SETPOS, 0, m_DropFrameThreshold);
+
+			SendDlgItemMessage(hwndDlg,	IDC_COMBO_COMPRESSION_LEVEL, CB_ADDSTRING, 0, (LPARAM)"1 - Fastest");
+			SendDlgItemMessage(hwndDlg,	IDC_COMBO_COMPRESSION_LEVEL, CB_ADDSTRING, 0, (LPARAM)"6 - Normal");
+			SendDlgItemMessage(hwndDlg,	IDC_COMBO_COMPRESSION_LEVEL, CB_ADDSTRING, 0, (LPARAM)"9 - Best");
+
+			CheckDlgButton(hwndDlg, IDC_CHECK_PNG_NO_FILTERS, !m_PNGFilters);						
+			CheckDlgButton(hwndDlg, IDC_CHECK_PNG_FILTER_NONE, (m_PNGFilters & PNG_FILTER_NONE));
+			CheckDlgButton(hwndDlg, IDC_CHECK_PNG_FILTER_AVG, (m_PNGFilters & PNG_FILTER_AVG));
+			CheckDlgButton(hwndDlg, IDC_CHECK_PNG_FILTER_PAETH, (m_PNGFilters & PNG_FILTER_PAETH));
+			CheckDlgButton(hwndDlg, IDC_CHECK_PNG_FILTER_SUB, (m_PNGFilters & PNG_FILTER_SUB));
+			CheckDlgButton(hwndDlg, IDC_CHECK_PNG_FILTER_UP, (m_PNGFilters & PNG_FILTER_UP));
+			CheckDlgButton(hwndDlg, IDC_CHECK_PNG_ALL_FILTERS, (m_PNGFilters == PNG_ALL_FILTERS));			
+			switch (m_ZlibCompressionLevel)
+			{
+				case 1:
+					SendDlgItemMessage(hwndDlg,	IDC_COMBO_COMPRESSION_LEVEL, CB_SETCURSEL, 0, 0);
+					break;
+				case 6:
+					SendDlgItemMessage(hwndDlg,	IDC_COMBO_COMPRESSION_LEVEL, CB_SETCURSEL, 1, 0);
+					break;
+				case 9:
+					SendDlgItemMessage(hwndDlg,	IDC_COMBO_COMPRESSION_LEVEL, CB_SETCURSEL, 2, 0);
+					break;				
+			};
 			break;
 		}		
 		case WM_PAINT:
@@ -573,6 +611,25 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 			switch (LOWORD(wParam))
 			{
 				case IDC_BUTTON_OK:
+					m_PNGFilters = 0;
+					if (IsDlgButtonChecked(hwndDlg, IDC_CHECK_PNG_NO_FILTERS) == BST_CHECKED) {
+						m_PNGFilters = PNG_NO_FILTERS;
+					} else {
+						// We look at our other filters
+						if (IsDlgButtonChecked(hwndDlg, IDC_CHECK_PNG_ALL_FILTERS) == BST_CHECKED)
+							m_PNGFilters |= PNG_ALL_FILTERS;
+						if (IsDlgButtonChecked(hwndDlg, IDC_CHECK_PNG_FILTER_NONE) == BST_CHECKED)
+							m_PNGFilters |= PNG_FILTER_NONE;
+						if (IsDlgButtonChecked(hwndDlg, IDC_CHECK_PNG_FILTER_AVG) == BST_CHECKED)
+							m_PNGFilters |= PNG_FILTER_AVG;
+						if (IsDlgButtonChecked(hwndDlg, IDC_CHECK_PNG_FILTER_PAETH) == BST_CHECKED)
+							m_PNGFilters |= PNG_FILTER_PAETH;
+						if (IsDlgButtonChecked(hwndDlg, IDC_CHECK_PNG_FILTER_SUB) == BST_CHECKED)
+							m_PNGFilters |= PNG_FILTER_SUB;
+						if (IsDlgButtonChecked(hwndDlg, IDC_CHECK_PNG_FILTER_UP) == BST_CHECKED)
+							m_PNGFilters |= PNG_FILTER_UP;
+					}
+					m_ZlibCompressionLevel = GetDlgItemInt(hwndDlg, IDC_COMBO_COMPRESSION_LEVEL, NULL, FALSE);
 					m_DecodeToRGB24 = IsDlgButtonChecked(hwndDlg, IDC_CHECK_DECODE_RGB24);
 					m_DeltaFramesEnabled = IsDlgButtonChecked(hwndDlg, IDC_CHECK_DELTA_FRAMES);
 					m_DropFrameThreshold = SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_GETPOS, 0, 0);
@@ -580,6 +637,25 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 					SaveSettings();
 
 					EndDialog(hwndDlg, IDOK);
+					break;
+				case IDC_CHECK_PNG_ALL_FILTERS:
+					if (IsDlgButtonChecked(hwndDlg, IDC_CHECK_PNG_ALL_FILTERS) == BST_CHECKED) {
+						CheckDlgButton(hwndDlg, IDC_CHECK_PNG_NO_FILTERS, BST_UNCHECKED);
+						CheckDlgButton(hwndDlg, IDC_CHECK_PNG_FILTER_AVG, BST_CHECKED);
+						CheckDlgButton(hwndDlg, IDC_CHECK_PNG_FILTER_PAETH, BST_CHECKED);
+						CheckDlgButton(hwndDlg, IDC_CHECK_PNG_FILTER_SUB, BST_CHECKED);
+						CheckDlgButton(hwndDlg, IDC_CHECK_PNG_FILTER_UP, BST_CHECKED);
+						CheckDlgButton(hwndDlg, IDC_CHECK_PNG_FILTER_NONE, BST_CHECKED);
+
+					}
+					break;
+				case IDC_CHECK_PNG_NO_FILTERS:
+					CheckDlgButton(hwndDlg, IDC_CHECK_PNG_ALL_FILTERS, BST_UNCHECKED);
+					CheckDlgButton(hwndDlg, IDC_CHECK_PNG_FILTER_AVG, BST_UNCHECKED);
+					CheckDlgButton(hwndDlg, IDC_CHECK_PNG_FILTER_PAETH, BST_UNCHECKED);
+					CheckDlgButton(hwndDlg, IDC_CHECK_PNG_FILTER_SUB, BST_UNCHECKED);
+					CheckDlgButton(hwndDlg, IDC_CHECK_PNG_FILTER_UP, BST_UNCHECKED);
+					CheckDlgButton(hwndDlg, IDC_CHECK_PNG_FILTER_NONE, BST_UNCHECKED);					
 					break;
 				case IDC_BUTTON_CANCEL:
 					EndDialog(hwndDlg, IDCANCEL);

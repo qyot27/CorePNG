@@ -134,11 +134,11 @@ extern "C" __declspec(dllexport) LRESULT WINAPI DriverProc(DWORD dwDriverId, HDR
 	case ICM_GETSTATE :
 		if(lParam1 == NULL)
 		{
-			//return sizeof(WARPconfig);
+			return sizeof(CorePNGCodecSettings);
 		}
 		else
 		{
-			//memcpy((void*)lParam1, handler->getconfig(), sizeof(WARPconfig));
+			memcpy((void*)lParam1, handler, handler->wSize);
 		}
 		return ICERR_OK;
 
@@ -152,7 +152,7 @@ extern "C" __declspec(dllexport) LRESULT WINAPI DriverProc(DWORD dwDriverId, HDR
 		}
 		else
 		{
-		//	handler->setconfig((WARPconfig*)lParam1);
+			memcpy((void*)handler, (void*)lParam1, handler->wSize);
 		}
 		return ICERR_OK;
 

@@ -4,6 +4,7 @@
 #include <commctrl.h>
 #include <vfw.h>
 #include "ximage.h"
+#include "ximapng.h"
 
 #include "resource.h"
 
@@ -24,7 +25,18 @@
 #define FOURCC_PNG mmioFOURCC('P','N','G','1')
 #define FOURCC_PNG_OLD mmioFOURCC('P','N','G',' ')
 
-class VFWhandler
+struct CorePNGCodecSettings {
+	CorePNGCodecSettings() {
+		wSize = sizeof(CorePNGCodecSettings);
+	}
+	WORD wSize;
+	BYTE m_ZlibCompressionLevel;
+	BYTE m_PNGFilters;
+	DWORD m_DropFrameThreshold;
+	BYTE m_DeltaFramesEnabled;
+};
+
+class VFWhandler : public CorePNGCodecSettings
 {
 public:
 
@@ -35,7 +47,7 @@ public:
 
 	void LoadSettings();
 	void SaveSettings();
-
+	
 // Config functions
 	void VFW_configure(HWND hParentWindow);
 
@@ -63,13 +75,15 @@ protected:
 	
 	DWORD m_BufferSize;
 	CxImage myLogo;
-	CxImage m_Image;
-	CxImage m_DeltaFrame;
+	CxImagePNG m_Image;
+	CxImagePNG m_DeltaFrame;
 
+	//BYTE m_ZlibCompressionLevel;
+	//BYTE m_PNGFilters;
 	bool m_DecodeToRGB24;
-	DWORD m_DropFrameThreshold;
+	//DWORD m_DropFrameThreshold;
 	WORD m_DeltaFrameCount;
-	bool m_DeltaFramesEnabled;
+	//bool m_DeltaFramesEnabled;
 };
 
 BOOL CALLBACK ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
