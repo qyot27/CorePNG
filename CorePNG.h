@@ -122,14 +122,10 @@ public:
 
 protected:
 	HRESULT AlphaBlend(RGBTRIPLE *targetBits);
-	inline HRESULT SubtitleReady(REFERENCE_TIME *pCurrentTimecode) { 
-		if (*pCurrentTimecode >= m_LastTimecode)
-			return S_OK; 
-		return E_PENDING;
-	};
+	inline BOOL BlendImages(RGBTRIPLE *lprgbSrc2, RGBTRIPLE *lprgbDst);
 
 	CCorePNGSubtitlerFilterPNGInputPin *m_pInputPNGPin;
-	REFERENCE_TIME m_LastTimecode;
+	bool m_HaveSubtitle;
 	CxImage m_Image;
 	VIDEOINFOHEADER m_VideoHeader;
 	VIDEOINFOHEADER m_PNGVideoHeader;

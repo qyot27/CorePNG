@@ -20,7 +20,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\CxImage\CxImage\"
+				AdditionalIncludeDirectories=".\CxImage\CxImage\"
 				PreprocessorDefinitions="WIN32;_WINDOWS;_DEBUG;_USRDLL"
 				MinimalRebuild="TRUE"
 				BasicRuntimeChecks="3"
@@ -35,7 +35,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				RegisterOutput="TRUE"
-				AdditionalDependencies="quartz.lib strmiids.lib strmbasd.lib ..\CxImage\bin\cximagecrt_fast_.lib"
+				AdditionalDependencies="quartz.lib strmiids.lib strmbasd.lib .\CxImage\CxImage\CxImageDLL\Release\CxImageCrtDll_png_static.lib"
 				OutputFile="$(OutDir)/CorePNG.dll"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories=""
@@ -80,7 +80,7 @@
 				FavorSizeOrSpeed="1"
 				OmitFramePointers="TRUE"
 				OptimizeForProcessor="2"
-				AdditionalIncludeDirectories="..\CxImage\CxImage\"
+				AdditionalIncludeDirectories=".\CxImage\CxImage\"
 				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG;_USRDLL"
 				StringPooling="TRUE"
 				RuntimeLibrary="0"
@@ -95,7 +95,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				RegisterOutput="TRUE"
-				AdditionalDependencies="quartz.lib strmiids.lib strmbase.lib ..\CxImage\bin\cximagecrt_fast_.lib"
+				AdditionalDependencies="quartz.lib strmiids.lib strmbase.lib .\CxImage\CxImage\CxImageDLL\Release\CxImageCrtDll_png_static.lib"
 				OutputFile="$(OutDir)/CorePNG.dll"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories=""

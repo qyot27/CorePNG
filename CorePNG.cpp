@@ -231,8 +231,8 @@ CCorePNGEncoderFilter::~CCorePNGEncoderFilter() {
 HRESULT CCorePNGEncoderFilter::CheckInputType(const CMediaType *mtIn) {
 	if (*mtIn->Type() == MEDIATYPE_Video) {
 		// Ok it's audio...
-		// We need PCM
-		if (*mtIn->Subtype() == MEDIASUBTYPE_RGB24) {
+		// We need RGB
+		if (*mtIn->Subtype() == MEDIASUBTYPE_RGB24 || *mtIn->Subtype() == MEDIASUBTYPE_RGB32) {
 			// Yay \o/
 			memcpy(&m_VideoHeader, mtIn->Format(), sizeof(VIDEOINFOHEADER));
 			m_Image.Create(m_VideoHeader.bmiHeader.biWidth, m_VideoHeader.bmiHeader.biHeight, 24);
@@ -354,7 +354,14 @@ HRESULT CCorePNGEncoderFilter::Transform(IMediaSample *pIn, IMediaSample *pOut) 
   		return S_FALSE;
 	}
 
-	CopyMemory(m_Image.GetBits(), pBuffer, lActual);
+	if (m_VideoHeader.bmiHeader.biBitCount == 32) {
+		// Convert the 24-bit+Alpha to 32-bits
+		m_Image.CreateFromARGB(m_VideoHeader.bmiHeader.biWidth, m_VideoHeader.bmiHeader.biHeight, (BYTE *)pBuffer);
+		m_Image.Flip();
+	} else if (m_VideoHeader.bmiHeader.biBitCount == 24) {
+		CopyMemory(m_Image.GetBits(), pBuffer, lActual);
+	}
+	
 	memfile.Seek(0, 0);		
 	m_Image.Encode(&memfile, CXIMAGE_FORMAT_PNG);	
 	//m_Image.Draw(GetDC(NULL));
@@ -595,6 +602,7 @@ CCorePNGSubtitlerFilter::CCorePNGSubtitlerFilter(LPUNKNOWN pUnk, HRESULT *pHr)
 	: CTransformFilter(g_stCorePNGSubtitlerName, pUnk, CLSID_CorePNGSubtitler)
 {
 	memset(&m_VideoHeader, 0, sizeof(VIDEOINFOHEADER));
+	memset(&m_PNGVideoHeader, 0, sizeof(VIDEOINFOHEADER));
 };
 
 CCorePNGSubtitlerFilter::~CCorePNGSubtitlerFilter() {
@@ -666,7 +674,7 @@ CBasePin *CCorePNGSubtitlerFilter::GetPin(int n)
 HRESULT CCorePNGSubtitlerFilter::CheckInputType(const CMediaType *mtIn) {
 	if (*mtIn->Type() == MEDIATYPE_Video) {
 		// Ok it's audio...
-		// We need PNG
+		// We need RAW video
 		if (*mtIn->Subtype() == MEDIASUBTYPE_RGB24) {
 			// Yay \o/
 			memcpy(&m_VideoHeader, mtIn->Format(), sizeof(VIDEOINFOHEADER));
@@ -785,14 +793,15 @@ HRESULT CCorePNGSubtitlerFilter::Transform(IMediaSample *pIn, IMediaSample *pOut
 	BYTE *pBuffer;
 	pIn->GetPointer(&pBuffer);	
 
-	REFERENCE_TIME rtStart;
-	REFERENCE_TIME rtEnd;
-	pIn->GetTime(&rtStart, &rtEnd);
+	//LONGLONG rtStart;
+	//LONGLONG rtEnd;
+	//pIn->GetMediaTime(&rtStart, &rtEnd);
 
 	BYTE *pOutBuffer;
 	pOut->GetPointer(&pOutBuffer);	
-	if (SubtitleReady(&rtStart) == S_OK) {
-		AlphaBlend((RGBTRIPLE *)pBuffer);
+	if (m_HaveSubtitle) {
+		BlendImages((RGBTRIPLE *)pBuffer, (RGBTRIPLE *)pOutBuffer);
+		m_HaveSubtitle = false;
 	} else {	
 		//m_Image.Draw(GetDC(NULL));
 		CopyMemory(pOutBuffer, pBuffer, m_VideoHeader.bmiHeader.biSizeImage);
@@ -812,8 +821,8 @@ HRESULT CCorePNGSubtitlerFilter::GetPNGSample(IMediaSample *pSample)
   HRESULT hr = S_OK;
   ASSERT(pSample);
 
-	REFERENCE_TIME rtEnd;
-	pSample->GetTime(&m_LastTimecode, &rtEnd);
+	//LONGLONG rtEnd;
+	//pSample->GetMediaTime(&m_LastTimecode, &rtEnd);
 	// Decode the sample here
 	LONG lActual = pSample->GetActualDataLength();
 
@@ -821,6 +830,7 @@ HRESULT CCorePNGSubtitlerFilter::GetPNGSample(IMediaSample *pSample)
 	pSample->GetPointer(&pBuffer);
 
 	m_Image.Decode(pBuffer, lActual, CXIMAGE_FORMAT_PNG);
+	m_HaveSubtitle = true;
 
 	return S_OK;
 };
@@ -834,11 +844,11 @@ HRESULT CCorePNGSubtitlerFilter::SetPNGHeader(VIDEOINFOHEADER *pVideoHeader)
 
 HRESULT CCorePNGSubtitlerFilter::AlphaBlend(RGBTRIPLE *targetBits)
 {
-	CxImage dummySource(m_Image);
+	/*CxImage dummySource(m_Image);
 	RGBTRIPLE *sourcePNG = (RGBTRIPLE *)m_Image.GetBits();	
 	RGBTRIPLE *sourceImage = (RGBTRIPLE *)dummySource.GetBits();
 
-	for (DWORD height = 0; height < m_Image.GetHeight(); height++) {
+	for (DWORD height = 0; height < ; height++) {
 		for (DWORD width = 0; width < m_Image.GetWidth(); width++) {
 			BYTE sourcePNGAlpha = m_Image.AlphaGet(width, height);
 				if (sourcePNGAlpha == 0) {
@@ -858,9 +868,42 @@ HRESULT CCorePNGSubtitlerFilter::AlphaBlend(RGBTRIPLE *targetBits)
 					targetBits->rgbtRed = sourceImagePixel.rgbtRed * ((float)sourcePNGAlpha / 255) + sourcePNGPixel.rgbtRed;
 				}
 		}
-	}
+	}*/
 	return NOERROR;
 };
+
+BOOL CCorePNGSubtitlerFilter::BlendImages(RGBTRIPLE *lprgbSrc2, RGBTRIPLE *lprgbDst)
+{
+	DWORD dwWeight1;
+	DWORD dwWeight2;
+	DWORD dwWidthBytes = 1890;//m_VideoHeader.bmiHeader.biWidth * (m_VideoHeader.bmiHeader.biBitCount / 8);
+
+	// Initialize the surface pointers.
+	RGBTRIPLE* lprgbSrc1 = (RGBTRIPLE *)m_Image.GetBits();	
+	//RGBTRIPLE* lprgbSrc2 = (RGBTRIPLE *)dummySource.GetBits();
+
+	for (DWORD y = 0; y < m_Image.GetHeight(); y++) {
+		for (DWORD x = 0; x < m_Image.GetWidth(); x++) {
+			// Get this pixels alpha
+			dwWeight1 = m_Image.AlphaGet(x, y);
+			dwWeight2 = 255-dwWeight1;
+
+			lprgbDst[x].rgbtRed   = (BYTE)((((DWORD)lprgbSrc1[x].rgbtRed * dwWeight1) + 
+				((DWORD)lprgbSrc2[x].rgbtRed * dwWeight2)) >> 8);
+			lprgbDst[x].rgbtGreen = (BYTE)((((DWORD)lprgbSrc1[x].rgbtGreen * dwWeight1) + 
+				((DWORD)lprgbSrc2[x].rgbtGreen * dwWeight2)) >> 8);
+			lprgbDst[x].rgbtBlue  = (BYTE)((((DWORD)lprgbSrc1[x].rgbtBlue * dwWeight1) + 
+				((DWORD)lprgbSrc2[x].rgbtBlue * dwWeight2)) >> 8);
+		}
+
+		// Move to next scan line.
+		lprgbSrc1 = (RGBTRIPLE *)((LPBYTE)lprgbSrc1 + dwWidthBytes);
+		lprgbSrc2 = (RGBTRIPLE *)((LPBYTE)lprgbSrc2 + dwWidthBytes);
+		lprgbDst  = (RGBTRIPLE *)((LPBYTE)lprgbDst  + dwWidthBytes);
+	}
+
+	return TRUE;
+}
 
 CUnknown *WINAPI CCorePNGSubtitlerFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT * phr)
 {
