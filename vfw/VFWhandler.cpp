@@ -659,6 +659,10 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 			HRSRC hres = FindResource(g_hInst, MAKEINTRESOURCE(IDR_PNG_LOGO), "PNG");
 			HGLOBAL hgImage = LoadResource(g_hInst, hres);
 			myLogo.Decode((BYTE *)LockResource(hgImage), SizeofResource(g_hInst, hres), CXIMAGE_FORMAT_PNG);
+#ifdef _DEBUG
+			RGBQUAD blackColor = {0, 0, 0, 0};
+			myLogo.DrawTextOnImage(GetDC(hwndDlg), 240, 20, "Debug Build", blackColor, "Arial", 18, 10000);
+#endif
 
 			CheckDlgButton(hwndDlg, IDC_CHECK_DECODE_RGB24, m_DecodeToRGB24);
 			CheckDlgButton(hwndDlg, IDC_CHECK_DELTA_FRAMES, m_DeltaFramesEnabled);
