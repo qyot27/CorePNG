@@ -81,8 +81,8 @@ void _stdcall RGBtoYUV422_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidt
 #define INLINE inline
 #endif
 
-#define COREPNG_VFW_VERSION "CorePNG VFW Codec v0.8"
-#define COREPNG_VFW_VERSIONW L"CorePNG VFW Codec v0.8"
+#define COREPNG_VFW_VERSION "CorePNG VFW Codec v0.8.1"
+#define COREPNG_VFW_VERSIONW L"CorePNG VFW Codec v0.8.1"
 
 #ifndef _DEBUG
 #define VFW_CODEC_CRASH_CATCHER_START \

@@ -22,6 +22,7 @@
 
 extern HINSTANCE g_hInst;
 
+typedef BOOL (*SetLayeredWindowAttributes_def)(HWND, COLORREF, BYTE, DWORD);
 
 VFWhandler::VFWhandler(void)
 {
@@ -29,7 +30,7 @@ VFWhandler::VFWhandler(void)
 	
 	// Load defaults from reg
 	LoadSettings();
-	
+
 	m_TotalKeyframes = 0;
 	m_TotalDeltaframes = 0;
 	m_hwndStatusDialog = NULL;
@@ -801,7 +802,8 @@ int VFWhandler::VFW_compress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* ou
 	} else {
 		m_Input_Mode = BI_RGB;
 		m_Image.Create(input->biWidth, input->biHeight, 24);
-		
+		m_DeltaFrame = m_Image;
+
 		m_Image.SetCompressionFilters(m_PNGFilters);
 		m_Image.SetCompressionLevel(m_ZlibCompressionLevel);
 	}
@@ -2339,7 +2341,9 @@ BOOL VFWhandler::StatusDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 					// Set WS_EX_LAYERED on this window 
 					SetWindowLong(hwndDlg, GWL_EXSTYLE, GetWindowLong(hwndDlg, GWL_EXSTYLE) | WS_EX_LAYERED);
 				}
-				SetLayeredWindowAttributes(hwndDlg, 0, (255 * bPos) / 100, LWA_ALPHA);
+				static SetLayeredWindowAttributes_def pSetLayeredWindowAttributes = (SetLayeredWindowAttributes_def)GetProcAddress(LoadLibrary("User32.dll"), "SetLayeredWindowAttributes");
+				if (pSetLayeredWindowAttributes != NULL)
+					pSetLayeredWindowAttributes(hwndDlg, 0, (255 * bPos) / 100, LWA_ALPHA);
 			}
 			
 			break;
