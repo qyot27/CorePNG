@@ -193,9 +193,6 @@
 				RelativePath="VFWhandler.cpp">
 			</File>
 			<File
-				RelativePath="ZipArchive.cpp">
-			</File>
-			<File
 				RelativePath="driverproc.cpp">
 			</File>
 		</Filter>
@@ -204,9 +201,6 @@
 			Filter="h;hpp;hxx;hm;inl;inc">
 			<File
 				RelativePath="VFWhandler.h">
-			</File>
-			<File
-				RelativePath="ZipArchive.h">
 			</File>
 			<File
 				RelativePath="resource.h">
@@ -226,7 +220,7 @@
 			Name="Colorspace Conversion"
 			Filter="">
 			<File
-				RelativePath="RGBYUV.asm">
+				RelativePath="..\common\RGBYUV.asm">
 				<FileConfiguration
 					Name="Debug|Win32">
 					<Tool
@@ -247,16 +241,16 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="convert_yuy2.cpp">
+				RelativePath="..\common\convert_yuy2.cpp">
 			</File>
 			<File
-				RelativePath="convert_yuy2.h">
+				RelativePath="..\common\convert_yuy2.h">
 			</File>
 			<File
-				RelativePath="convert_yv12.cpp">
+				RelativePath="..\common\convert_yv12.cpp">
 			</File>
 			<File
-				RelativePath="convert_yv12.h">
+				RelativePath="..\common\convert_yv12.h">
 			</File>
 		</Filter>
 		<Filter
@@ -273,10 +267,22 @@
 			Name="CrashCatcher"
 			Filter="">
 			<File
-				RelativePath="mdump.cpp">
+				RelativePath="..\common\CorePNG_crash.rc">
 			</File>
 			<File
-				RelativePath="mdump.h">
+				RelativePath="..\common\ZipArchive.cpp">
+			</File>
+			<File
+				RelativePath="..\common\ZipArchive.h">
+			</File>
+			<File
+				RelativePath="..\common\mdump.cpp">
+			</File>
+			<File
+				RelativePath="..\common\mdump.h">
+			</File>
+			<File
+				RelativePath="..\common\resource.h">
 			</File>
 		</Filter>
 		<Filter

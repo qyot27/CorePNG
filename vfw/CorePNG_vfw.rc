@@ -157,24 +157,6 @@ BEGIN
     DEFPUSHBUTTON   "Ok",IDC_BUTTON_ABOUT_OK,73,136,50,14
 END
 
-IDD_DIALOG_CRASH DIALOG DISCARDABLE  0, 0, 264, 177
-STYLE DS_SYSMODAL | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | 
-    WS_SYSMENU
-CAPTION "Crash"
-FONT 8, "MS Sans Serif"
-BEGIN
-    DEFPUSHBUTTON   "Save Crash Report",IDC_BUTTON_SAVE_DUMP,85,156,73,14
-    PUSHBUTTON      "Close",IDCANCEL,211,156,46,14
-    EDITTEXT        IDC_EDIT_CRASH_REPORT,7,51,250,61,ES_MULTILINE | 
-                    ES_AUTOHSCROLL | ES_READONLY | WS_VSCROLL
-    LTEXT           "Opps, A crash.",IDC_STATIC_CRASH_TITLE,7,7,250,44
-    PUSHBUTTON      "Ignore",IDIGNORE,162,156,46,14
-    EDITTEXT        IDC_EDIT_CRASH_USER_TEXT,7,123,250,30,ES_MULTILINE | 
-                    ES_WANTRETURN | WS_VSCROLL
-    LTEXT           "Please enter a short description of what happened.",
-                    IDC_STATIC,7,114,250,8
-END
-
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -198,14 +180,6 @@ BEGIN
         RIGHTMARGIN, 189
         TOPMARGIN, 7
         BOTTOMMARGIN, 146
-    END
-
-    IDD_DIALOG_CRASH, DIALOG
-    BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 257
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 170
     END
 END
 #endif    // APSTUDIO_INVOKED
