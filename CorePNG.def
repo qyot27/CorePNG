@@ -1,0 +1,11 @@
+; CorePNG.def : Declares the module parameters for the DLL.
+
+LIBRARY      "CorePNG"
+
+EXPORTS
+	; Explicit exports can go here
+	DllMain                 PRIVATE
+	DllGetClassObject       PRIVATE
+	DllCanUnloadNow         PRIVATE
+	DllRegisterServer       PRIVATE
+	DllUnregisterServer     PRIVATE
