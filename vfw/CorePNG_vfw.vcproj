@@ -19,7 +19,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\;..\CxImage\CxImage\;..\CxImage\png\;..\CxImage\zlib\"
+				AdditionalIncludeDirectories=".\;..\;..\common;..\CxImage\CxImage\;..\CxImage\png\;..\CxImage\zlib\"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CRTDBG_MAP_ALLOC;_WINDOWS;_USRDLL"
 				MinimalRebuild="TRUE"
 				BasicRuntimeChecks="3"
@@ -76,16 +76,18 @@
 				OmitFramePointers="TRUE"
 				EnableFiberSafeOptimizations="TRUE"
 				OptimizeForProcessor="2"
-				AdditionalIncludeDirectories="..\;..\CxImage\CxImage\;..\CxImage\png\;..\CxImage\zlib\"
+				AdditionalIncludeDirectories=".\;..\;..\common;..\CxImage\CxImage\;..\CxImage\png\;..\CxImage\zlib\"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL"
 				StringPooling="TRUE"
+				MinimalRebuild="FALSE"
 				RuntimeLibrary="0"
 				BufferSecurityCheck="FALSE"
 				EnableFunctionLevelLinking="TRUE"
 				UsePrecompiledHeader="0"
 				WarningLevel="4"
 				Detect64BitPortabilityProblems="TRUE"
-				DebugInformationFormat="3"/>
+				DebugInformationFormat="3"
+				CallingConvention="0"/>
 			<Tool
 				Name="VCCustomBuildTool"
 				Description="Copying vfw DLL to system32 directory..."
@@ -196,12 +198,6 @@
 			<File
 				RelativePath="driverproc.cpp">
 			</File>
-			<File
-				RelativePath="mdump.cpp">
-			</File>
-			<File
-				RelativePath="quadrantscan.cpp">
-			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -211,12 +207,6 @@
 			</File>
 			<File
 				RelativePath="ZipArchive.h">
-			</File>
-			<File
-				RelativePath="mdump.h">
-			</File>
-			<File
-				RelativePath="quadrantscan.h">
 			</File>
 			<File
 				RelativePath="resource.h">
@@ -257,10 +247,46 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="convert_yuy2.cpp">
+			</File>
+			<File
+				RelativePath="convert_yuy2.h">
+			</File>
+			<File
 				RelativePath="convert_yv12.cpp">
 			</File>
 			<File
 				RelativePath="convert_yv12.h">
+			</File>
+		</Filter>
+		<Filter
+			Name="CpuInfo"
+			Filter="">
+			<File
+				RelativePath="..\common\cpu_info.cpp">
+			</File>
+			<File
+				RelativePath="..\common\cpu_info.h">
+			</File>
+		</Filter>
+		<Filter
+			Name="CrashCatcher"
+			Filter="">
+			<File
+				RelativePath="mdump.cpp">
+			</File>
+			<File
+				RelativePath="mdump.h">
+			</File>
+		</Filter>
+		<Filter
+			Name="Image Processing"
+			Filter="">
+			<File
+				RelativePath="..\common\quadrantscan.cpp">
+			</File>
+			<File
+				RelativePath="..\common\quadrantscan.h">
 			</File>
 		</Filter>
 	</Files>

@@ -38,6 +38,7 @@
 #define _USRDLL
 
 // Colorspace conversion declares/includes
+#include "convert_yuy2.h"
 #include "convert_yv12.h"
 extern "C" {
 //Declare for assembly YUV2->RGB32 conversion
@@ -47,7 +48,11 @@ void _stdcall RGBtoYCrCb_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth
 void _stdcall RGBtoYUV422_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch); 
 };
 
+//#ifdef QUADRANT_SCAN_TEST
 #include "quadrantscan.h"
+//#endif
+
+#include "cpu_info.h"
 
 // .rc Resource include
 #include "resource.h"
@@ -66,6 +71,13 @@ void _stdcall RGBtoYUV422_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidt
 #define ODS(x) OutputDebugString(x "\n")
 #else
 #define ODS(x)
+#endif
+
+// Debug builds have inlining disabled
+#ifdef _DEBUG
+#define INLINE
+#else
+#define INLINE inline
 #endif
 
 #define COREPNG_VFW_VERSION "CorePNG VFW Codec v0.7"
@@ -211,25 +223,26 @@ public:
 	BOOL ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	BOOL AboutDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	
-	inline int CompressDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2);
+	INLINE int CompressDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2);
 protected:
-	static void DeltaFrameCompressThread(void *threadData);
-	inline bool CreateYUY2(BITMAPINFOHEADER* input);
-	inline void CompressYUY2KeyFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
-	inline void CompressYUY2DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
+	INLINE void CopyImageBits(CxImage &dest, CxImage &src);
+	static void __cdecl DeltaFrameCompressThread(void *threadData);
+	INLINE bool CreateYUY2(BITMAPINFOHEADER* input);
+	INLINE void CompressYUY2KeyFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
+	INLINE void CompressYUY2DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
 	
-	inline bool CreateYV12(BITMAPINFOHEADER* input);
-	inline void CompressYV12KeyFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
-	inline void CompressYV12DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
+	INLINE bool CreateYV12(BITMAPINFOHEADER* input);
+	INLINE void CompressYV12KeyFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
+	INLINE void CompressYV12DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
 
-	inline int CompressKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2);	
-	inline int CompressDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2);
-	inline RGBQUAD AveragePixels(DWORD x, DWORD y);
+	INLINE int CompressKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2);	
+	INLINE int CompressDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2);
+	INLINE RGBQUAD AveragePixels(DWORD x, DWORD y);
 	
 	/// Decompression functions
-	inline int DecompressRGBFrame(ICDECOMPRESS* lParam1);
-	inline int DecompressYUY2Frame(ICDECOMPRESS* lParam1);
-	inline int DecompressYV12Frame(ICDECOMPRESS* lParam1);
+	INLINE int DecompressRGBFrame(ICDECOMPRESS* lParam1);
+	INLINE int DecompressYUY2Frame(ICDECOMPRESS* lParam1);
+	INLINE int DecompressYV12Frame(ICDECOMPRESS* lParam1);
 
 	CorePNGCodecPrivate m_CodecPrivate;
 
@@ -269,9 +282,11 @@ WORD AddTooltip(HWND hwndTooltip, HWND hwndClient, LPSTR strText);
 DWORD CorePNG_GetRegistryValue(char *value_key, DWORD default_value);
 void CorePNG_SetRegistryValue(char *value_key, DWORD the_value);
 
+#ifdef MY_OWN_COLORSPACE_CONVERSION
 void YV12toRGB24(BYTE *pInput, BYTE *pOutput, DWORD dwWidth, DWORD dwHeight);
 void YV12toYUY2(BYTE *pInput, BYTE *pOutput, DWORD dwWidth, DWORD dwHeight);
 void YV12toRGB24_Resample(CxImage &Y_plane, CxImage &U_plane, CxImage &V_plane, BYTE *pOutput, WORD wMethod);
+#endif
 
 #endif // __VFW_HANDLER_H_
 

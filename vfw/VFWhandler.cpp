@@ -142,21 +142,16 @@ bool VFWhandler::CreateYV12(BITMAPINFOHEADER* input)
 void VFWhandler::CompressYV12KeyFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer)
 {
 	// YV12
-	BYTE *Y_data = (BYTE *)Y_Channel.GetBits();	
-	BYTE *V_data = (BYTE *)V_Channel.GetBits();
-	BYTE *U_data = (BYTE *)U_Channel.GetBits();
-
 	memcpy(Y_Channel.GetBits(), inputYUV2Data, Y_Channel.GetSizeImage());
 	inputYUV2Data += Y_Channel.GetSizeImage();
 	memcpy(V_Channel.GetBits(), inputYUV2Data, V_Channel.GetSizeImage());
 	inputYUV2Data += V_Channel.GetSizeImage();
 	memcpy(U_Channel.GetBits(), inputYUV2Data, U_Channel.GetSizeImage());
 
-
 	if (m_DeltaFramesEnabled) {
-		memcpy(Y_Channel_Delta.GetBits(), Y_Channel.GetBits(), Y_Channel.GetSizeImage());
-		memcpy(U_Channel_Delta.GetBits(), U_Channel.GetBits(), U_Channel.GetSizeImage());
-		memcpy(V_Channel_Delta.GetBits(), V_Channel.GetBits(), V_Channel.GetSizeImage());
+		CopyImageBits(Y_Channel_Delta, Y_Channel);
+		CopyImageBits(U_Channel_Delta, U_Channel);
+		CopyImageBits(V_Channel_Delta, V_Channel);
 		m_DeltaFrameCount++;
 	}
 	//Y_Channel.Draw(GetDC(NULL));
@@ -218,11 +213,14 @@ void VFWhandler::CompressYV12DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBu
 VFWhandler::VFWhandler(void)
 {
 	ODS("VFWhandler::VFWhandler()");
-
+	
+	// Load defaults from reg
+	LoadSettings();
+	
 	m_BufferSize = 0;
 	m_DeltaFrameCount = 0;
 	m_Output_Mode = PNGOutputMode_None;
-	LoadSettings();
+	m_threadInfo = NULL;	
 	m_MemoryBuffer.Open();
 }
 
@@ -328,7 +326,7 @@ int VFWhandler::CompressKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2)
 		}
 		memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
 		if (m_DeltaFramesEnabled) {
-			m_DeltaFrame = m_Image;
+			CopyImageBits(m_DeltaFrame, m_Image);
 			m_DeltaFrameCount++;
 		}
 #ifdef QUADRANT_SCAN_TEST
@@ -614,7 +612,15 @@ int VFWhandler::CompressDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2)
 	return ICERR_OK;
 };
 
-void VFWhandler::DeltaFrameCompressThread(void *threadData)
+void VFWhandler::CopyImageBits(CxImage &dest, CxImage &src)
+{
+	// Do a debug check if the image formats match
+	assert(dest.GetSizeImage() == src.GetSizeImage());
+	// Do a direct memory copy
+	memcpy(dest.GetBits(), src.GetBits(), src.GetSizeImage());
+}
+
+void __cdecl VFWhandler::DeltaFrameCompressThread(void *threadData)
 {
 	DeltaThreadInfo *threadInfo = (DeltaThreadInfo *)threadData;
 	
@@ -2246,6 +2252,7 @@ void CorePNG_SetRegistryValue(char *value_key, DWORD the_value)
 	RegCloseKey(key_handle);
 };
 
+#ifdef MY_OWN_COLORSPACE_CONVERSION
 void YV12toRGB24(BYTE *pInput, BYTE *pOutput, DWORD dwWidth, DWORD dwHeight)
 {
 /*
@@ -2359,3 +2366,4 @@ void YV12toRGB24_Resample(CxImage &Y_plane, CxImage &U_plane, CxImage &V_plane, 
 		lprgbDst = (RGBTRIPLE *)((LPBYTE)lprgbDst + dwWidthBytes);
 	}
 };
+#endif

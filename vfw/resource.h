@@ -28,6 +28,7 @@
 #define IDC_BUTTON_DISPLAY_ABOUT        1030
 #define IDC_EDIT_CRASH_REPORT           1031
 #define IDC_CHECK_CRASH_CATCHER         1031
+#define IDC_TAB1                        1032
 #define IDC_BUTTON_SAVE_DUMP            1120
 #define IDC_STATIC_CRASH_TITLE          1121
 #define IDC_EDIT_CRASH_USER_TEXT        1123
@@ -38,7 +39,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        103
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1032
+#define _APS_NEXT_CONTROL_VALUE         1034
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

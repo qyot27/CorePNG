@@ -41,7 +41,7 @@ HINSTANCE g_hInst;
 // This is the DllMain.
 BOOL APIENTRY DllMain(HANDLE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
 {
-#ifdef _DEBUG
+#ifdef _DEBUG_MEM
 	// Setup the debug options
 	_CrtSetDbgFlag( _CRTDBG_ALLOC_MEM_DF 
 								| _CRTDBG_LEAK_CHECK_DF //Check for memory leaks on app exit
@@ -89,9 +89,14 @@ extern "C" LRESULT WINAPI DriverProc(DWORD dwDriverId, HDRVR hDriver, UINT uMsg,
 
 	// This seems to be where a new codec instance is created.
 	case DRV_OPEN :
-		handler = new VFWhandler();
+	{
+		/*int i = sizeof(VFWhandler);
+		i = sizeof(CxImagePNG);
+		i = sizeof(CPUInfo);
+		i = sizeof(CxMemFile);*/
+		handler = new VFWhandler();		
 		return (LRESULT)handler;
-
+	}
 	// Obviously if open creates, close should delete.
 	case DRV_CLOSE :
 		delete handler;
