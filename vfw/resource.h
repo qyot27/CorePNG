@@ -5,6 +5,7 @@
 #define IDR_PNG_LOGO                    102
 #define IDD_DIALOG_ABOUT                102
 #define IDD_PROPPAGE_CONFIG             106
+#define IDD_DIALOG_CRASH                148
 #define IDC_BUTTON_OK                   1009
 #define IDC_BUTTON_CANCEL               1010
 #define IDC_CHECK_DECODE_RGB24          1011
@@ -25,6 +26,11 @@
 #define IDC_EDIT_ABOUT_TEXT             1028
 #define IDC_BUTTON_ABOUT_OK             1029
 #define IDC_BUTTON_DISPLAY_ABOUT        1030
+#define IDC_EDIT_CRASH_REPORT           1031
+#define IDC_CHECK_CRASH_CATCHER         1031
+#define IDC_BUTTON_SAVE_DUMP            1120
+#define IDC_STATIC_CRASH_TITLE          1121
+#define IDC_EDIT_CRASH_USER_TEXT        1123
 
 // Next default values for new objects
 // 
@@ -32,7 +38,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        103
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1031
+#define _APS_NEXT_CONTROL_VALUE         1032
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

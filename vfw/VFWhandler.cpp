@@ -764,7 +764,7 @@ int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 		return DecompressYUY2Frame(lParam1);
 
 	} else if (m_CodecPrivate.bType == PNGFrameType_YV12) {
-		return DecompressYV12Frame(lParam1);			
+		return DecompressYV12Frame(lParam1+50);			
 	}
 	return ICERR_OK;
 	VFW_CODEC_CRASH_CATCHER_END;
@@ -1609,6 +1609,7 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 			RECT dialogImage = { 0, 0, 350, 100 };
 			InvalidateRect(hwndDlg, &dialogImage, true);
 
+			CheckDlgButton(hwndDlg, IDC_CHECK_CRASH_CATCHER, CorePNG_GetRegistryValue("Crash Catcher Enabled", 0));
 			CheckDlgButton(hwndDlg, IDC_CHECK_DECODE_RGB24, m_DecodeToRGB24);
 			CheckDlgButton(hwndDlg, IDC_CHECK_DELTA_FRAMES, m_DeltaFramesEnabled);
 			CheckDlgButton(hwndDlg, IDC_CHECK_AUTO_DELTA_FRAMES, m_DeltaFrameAuto);
@@ -1649,6 +1650,8 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 			AddTooltip(hwndToolTip, GetDlgItem(hwndDlg,	IDC_CHECK_AUTO_DELTA_FRAMES), "Use Auto-Delta frames, when encoding delta-frames are encoded twice. Once as keyframes and another time as delta frames, the smaller frame is used.");
 			AddTooltip(hwndToolTip, GetDlgItem(hwndDlg,	IDC_COMBO_COMPRESSION_LEVEL), "Set your compression level here.");
 			AddTooltip(hwndToolTip, GetDlgItem(hwndDlg,	IDC_CHECK_DECODE_RGB24), "Output 32-bit RGB as 24-bit RGB, striping the Alpha channel.");
+			AddTooltip(hwndToolTip, GetDlgItem(hwndDlg,	IDC_CHECK_CRASH_CATCHER), "Enable crash catcher. Use this to send me bug reports that are directly related to CorePNG. It is disabled by default because it can/will catch other program crashes too. This may need a program restart to take effect.");
+			
 			break;
 		}		
 		case WM_PAINT:
@@ -1697,6 +1700,8 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 					m_DropFrameThreshold = SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_GETPOS, 0, 0);
 					m_DeltaFrameLimit = SendDlgItemMessage(hwndDlg,	IDC_SPIN_KEYFRAME_INTERVAL, UDM_GETPOS, 0, 0)-1;
 					
+					CorePNG_SetRegistryValue("Crash Catcher Enabled", IsDlgButtonChecked(hwndDlg, IDC_CHECK_CRASH_CATCHER));
+
 					SaveSettings();
 
 					EndDialog(hwndDlg, IDOK);

@@ -33,6 +33,11 @@
 #define new DEBUG_CLIENTBLOCK
 #endif
 
+#ifdef _DEBUG
+#define ODS(x) OutputDebugString(x "\n")
+#else
+#define ODS(x)
+#endif
 
 #include <windows.h>
 #include <commctrl.h>
@@ -41,32 +46,58 @@
 #include <process.h>
 #include "ximage.h"
 #include "ximapng.h"
-
-extern "C" {
-//Declare for assembly YUV2->RGB32 conversion
-void _stdcall YUV422toRGB_MMX(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch);
-//I don't use these, but it's nice to have the declares
-void _stdcall RGBtoYCrCb_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch); 
-void _stdcall RGBtoYUV422_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch); 
-};
-
+#include <sstream>
+#include <exception>
 #include "resource.h"
 
 #define COREPNG_VFW_VERSION "CorePNG VFW Codec v0.7"
 #define COREPNG_VFW_VERSIONW L"CorePNG VFW Codec v0.7"
 
+DWORD CorePNG_GetRegistryValue(char *value_key, DWORD default_value);
+void CorePNG_SetRegistryValue(char *value_key, DWORD the_value);
+
 #ifndef _DEBUG
 #define VFW_CODEC_CRASH_CATCHER_START \
 	try {
 #define VFW_CODEC_CRASH_CATCHER_END \
-	} catch (...) {\
-		return ICERR_ERROR;\
+	} catch (std::exception &ex) { \
+		if (CorePNG_GetRegistryValue("Crash Catcher Enabled", 0)) { \
+			std::ostringstream buf; \
+			buf << "Exception: "; \
+			buf << ex.what(); \
+			buf << ("\nFile: " __FILE__ "\nFunction: " __FUNCTION__ "\nLine:"); \
+			buf << __LINE__; \
+			buf << "\nTry to generate bug report?"; \
+			int msgBoxRet = MessageBoxA(NULL, buf.str().c_str(), "CorePNG VFW Codec Error", MB_YESNO|MB_TASKMODAL); \
+			if (msgBoxRet == IDYES) { \
+					throw; \
+			} \
+		} \
+		return ICERR_ERROR; \
+	} catch (...) { \
+		if (CorePNG_GetRegistryValue("Crash Catcher Enabled", 0)) { \
+			std::ostringstream buf; \
+			buf << ("Unhandled Exception,\nFile: " __FILE__ "\nFunction: " __FUNCTION__ "\nLine:"); \
+			buf << __LINE__; \
+			buf << "\nTry to generate bug report?"; \
+			int msgBoxRet = MessageBoxA(NULL, buf.str().c_str(), "CorePNG VFW Codec Error", MB_YESNO|MB_TASKMODAL); \
+			if (msgBoxRet == IDYES) { \
+					throw; \
+			} \
+		} \
+		return ICERR_ERROR; \
 	};
 #else
 #define VFW_CODEC_CRASH_CATCHER_START
 #define VFW_CODEC_CRASH_CATCHER_END
 #endif
 
+/*
+#define VFW_CODEC_CRASH_CATCHER_END \
+	} catch (...) {\
+		return ICERR_ERROR;\
+	};
+*/
 #define FOURCC_YV12 mmioFOURCC('Y','V','1','2')
 #define FOURCC_YUY2 mmioFOURCC('Y','U','Y','2')
 #define FOURCC_PNG mmioFOURCC('P','N','G','1')
@@ -83,6 +114,14 @@ void _stdcall RGBtoYUV422_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidt
 #define PNGFrameType_RGB24 0x01
 #define PNGFrameType_YUY2  0x02
 #define PNGFrameType_YV12  0x03
+
+extern "C" {
+//Declare for assembly YUV2->RGB32 conversion
+void _stdcall YUV422toRGB_MMX(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch);
+//I don't use these, but it's nice to have the declares
+void _stdcall RGBtoYCrCb_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch); 
+void _stdcall RGBtoYUV422_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch); 
+};
 
 struct CorePNGCodecPrivate {
 	CorePNGCodecPrivate() { 
@@ -210,9 +249,6 @@ BOOL CALLBACK ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM l
 BOOL CALLBACK AboutDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 WORD AddTooltip(HWND hwndTooltip, HWND hwndClient, LPSTR strText);
-
-DWORD CorePNG_GetRegistryValue(char *value_key, DWORD default_value);
-void CorePNG_SetRegistryValue(char *value_key, DWORD the_value);
 
 void YV12toRGB24(BYTE *pInput, BYTE *pOutput, DWORD dwWidth, DWORD dwHeight);
 void YV12toRGB24_Resample(CxImage &Y_plane, CxImage &U_plane, CxImage &V_plane, BYTE *pOutput, WORD wMethod);

@@ -191,7 +191,13 @@
 				RelativePath="VFWhandler.cpp">
 			</File>
 			<File
+				RelativePath="ZipArchive.cpp">
+			</File>
+			<File
 				RelativePath="driverproc.cpp">
+			</File>
+			<File
+				RelativePath="mdump.cpp">
 			</File>
 		</Filter>
 		<Filter
@@ -199,6 +205,12 @@
 			Filter="h;hpp;hxx;hm;inl;inc">
 			<File
 				RelativePath="VFWhandler.h">
+			</File>
+			<File
+				RelativePath="ZipArchive.h">
+			</File>
+			<File
+				RelativePath="mdump.h">
 			</File>
 			<File
 				RelativePath="resource.h">
@@ -230,7 +242,8 @@
 				<Tool
 					Name="VCCustomBuildTool"
 					Description="Assembling $(InputName)"
-					CommandLine="ml /c /Fo$(IntDir)\$(InputName).obj  &quot;$(InputPath)&quot;"
+					CommandLine="ml /c /Fo$(IntDir)\$(InputName).obj  &quot;$(InputPath)&quot;
+"
 					Outputs="$(IntDir)\$(InputName).obj"/>
 			</FileConfiguration>
 		</File>

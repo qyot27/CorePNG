@@ -36,6 +36,9 @@
 #include <windows.h>
 #include <vfw.h>
 
+#include "mdump.h"
+CrashCatcher *crasher = NULL;
+
 #include "VFWhandler.h"
 
 // The global dll handle
@@ -51,8 +54,25 @@ BOOL APIENTRY DllMain(HANDLE hModule, DWORD  ul_reason_for_call, LPVOID lpReserv
 								| _CRTDBG_CHECK_ALWAYS_DF); // Check memory heaps at each new and delete call
 	//_CrtSetAllocHook(YourAllocHook);
 #endif
+	if (ul_reason_for_call == DLL_PROCESS_ATTACH)
+	{
+		ODS("In DLLMain, DLL_PROCESS_ATTACH");
 
-	g_hInst = (HINSTANCE) hModule;
+		// Extension DLL one-time initialization
+		g_hInst = (HINSTANCE)hModule;
+		
+		if (CorePNG_GetRegistryValue("Crash Catcher Enabled", 0)) {
+			// Setup the crash catcher
+			crasher = new CrashCatcher(COREPNG_VFW_VERSION);
+		}
+
+	} else if (ul_reason_for_call == DLL_PROCESS_DETACH) {
+		ODS("In DLLMain, DLL_PROCESS_DETACH");
+		
+		if (crasher != NULL)
+			delete crasher;
+	}
+
 	return TRUE;
 }
 
