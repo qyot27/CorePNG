@@ -209,6 +209,26 @@
 				RelativePath="driverproc.def">
 			</File>
 		</Filter>
+		<File
+			RelativePath="RGBYUV.asm">
+			<FileConfiguration
+				Name="Debug|Win32">
+				<Tool
+					Name="VCCustomBuildTool"
+					Description="Assembling $(InputName)"
+					CommandLine="ml /c /Fo$(IntDir)\$(InputName).obj  &quot;$(InputPath)&quot;
+"
+					Outputs="$(IntDir)\$(InputName).obj"/>
+			</FileConfiguration>
+			<FileConfiguration
+				Name="Release|Win32">
+				<Tool
+					Name="VCCustomBuildTool"
+					Description="Assembling $(InputName)"
+					CommandLine="ml /c /Fo$(IntDir)\$(InputName).obj  &quot;$(InputPath)&quot;"
+					Outputs="$(IntDir)\$(InputName).obj"/>
+			</FileConfiguration>
+		</File>
 	</Files>
 	<Globals>
 	</Globals>

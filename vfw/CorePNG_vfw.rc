@@ -54,8 +54,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,6,1,1
- PRODUCTVERSION 0,6,1,1
+ FILEVERSION 0,7,1,1
+ PRODUCTVERSION 0,7,1,1
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -73,14 +73,14 @@ BEGIN
             VALUE "Comments", "http://corecodec.org/projects/vfre/\0"
             VALUE "CompanyName", "\0"
             VALUE "FileDescription", "CorePNG VFW Codec\0"
-            VALUE "FileVersion", "0, 6, 1, 1\0"
+            VALUE "FileVersion", "0, 7, 1, 1\0"
             VALUE "InternalName", "CorePNG\0"
             VALUE "LegalCopyright", "Copyright © 2003 Jory Stone\0"
             VALUE "LegalTrademarks", "\0"
             VALUE "OriginalFilename", "CorePNG_vfw.rc\0"
             VALUE "PrivateBuild", "\0"
             VALUE "ProductName", "CorePNG VFW Codec\0"
-            VALUE "ProductVersion", "0, 6, 1, 1\0"
+            VALUE "ProductVersion", "0, 7, 1, 1\0"
             VALUE "SpecialBuild", "\0"
         END
     END
@@ -142,6 +142,17 @@ BEGIN
                     UDS_ARROWKEYS,212,78,9,14
     CONTROL         "Auto Delta-Frames",IDC_CHECK_AUTO_DELTA_FRAMES,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,100,68,80,10
+    PUSHBUTTON      "&About",IDC_BUTTON_DISPLAY_ABOUT,4,156,50,14
+END
+
+IDD_DIALOG_ABOUT DIALOG DISCARDABLE  0, 0, 196, 153
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION
+CAPTION "About CorePNG"
+FONT 8, "MS Sans Serif"
+BEGIN
+    EDITTEXT        IDC_EDIT_ABOUT_TEXT,4,52,188,80,ES_MULTILINE | 
+                    ES_READONLY | WS_VSCROLL
+    DEFPUSHBUTTON   "Ok",IDC_BUTTON_ABOUT_OK,73,136,50,14
 END
 
 
@@ -159,6 +170,14 @@ BEGIN
         RIGHTMARGIN, 217
         TOPMARGIN, 7
         BOTTOMMARGIN, 166
+    END
+
+    IDD_DIALOG_ABOUT, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 189
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 146
     END
 END
 #endif    // APSTUDIO_INVOKED

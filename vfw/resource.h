@@ -3,6 +3,7 @@
 // Used by CorePNG_vfw.rc
 //
 #define IDR_PNG_LOGO                    102
+#define IDD_DIALOG_ABOUT                102
 #define IDD_PROPPAGE_CONFIG             106
 #define IDC_BUTTON_OK                   1009
 #define IDC_BUTTON_CANCEL               1010
@@ -21,6 +22,9 @@
 #define IDC_EDIT_KEYFRAME_INTERVAL      1025
 #define IDC_SPIN_KEYFRAME_INTERVAL      1026
 #define IDC_CHECK_AUTO_DELTA_FRAMES     1027
+#define IDC_EDIT_ABOUT_TEXT             1028
+#define IDC_BUTTON_ABOUT_OK             1029
+#define IDC_BUTTON_DISPLAY_ABOUT        1030
 
 // Next default values for new objects
 // 
@@ -28,7 +32,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        103
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1028
+#define _APS_NEXT_CONTROL_VALUE         1031
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -42,10 +42,18 @@
 #include "ximage.h"
 #include "ximapng.h"
 
+extern "C" {
+//Declare for assembly YUV2->RGB32 conversion
+void _stdcall YUV422toRGB_MMX(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch);
+//I don't use these, but it's nice to have the declares
+void _stdcall RGBtoYCrCb_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch); 
+void _stdcall RGBtoYUV422_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch); 
+};
+
 #include "resource.h"
 
-#define COREPNG_VFW_VERSION "CorePNG VFW Codec v0.6"
-#define COREPNG_VFW_VERSIONW L"CorePNG VFW Codec v0.6"
+#define COREPNG_VFW_VERSION "CorePNG VFW Codec v0.7"
+#define COREPNG_VFW_VERSIONW L"CorePNG VFW Codec v0.7"
 
 #ifndef _DEBUG
 #define VFW_CODEC_CRASH_CATCHER_START \
@@ -63,6 +71,14 @@
 #define FOURCC_YUY2 mmioFOURCC('Y','U','Y','2')
 #define FOURCC_PNG mmioFOURCC('P','N','G','1')
 #define FOURCC_PNG_OLD mmioFOURCC('P','N','G',' ')
+
+/// Leave the output as orignal
+#define PNGOutputMode_None  0x00
+/// Convert output
+#define PNGOutputMode_RGB24 0x01
+#define PNGOutputMode_RGB32 0x02
+#define PNGOutputMode_YUY2  0x03
+#define PNGOutputMode_YV12  0x04
 
 #define PNGFrameType_RGB24 0x01
 #define PNGFrameType_YUY2  0x02
@@ -115,6 +131,7 @@ public:
 	void SaveSettings();
 	
 // Config functions
+	void VFW_about(HWND hParentWindow);
 	void VFW_configure(HWND hParentWindow);
 
 // Compress functions
@@ -135,7 +152,9 @@ public:
 	int VFW_decompress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output);
 	int VFW_decompress_end(int lParam1, int lParam2);
 
+	// Dialogbox callbacks
 	BOOL ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	BOOL AboutDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	
 	inline int CompressDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2);
 protected:
@@ -152,6 +171,11 @@ protected:
 	inline int CompressDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2);
 	inline RGBQUAD AveragePixels(DWORD x, DWORD y);
 	
+	/// Decompression functions
+	inline int DecompressRGBFrame(ICDECOMPRESS* lParam1);
+	inline int DecompressYUY2Frame(ICDECOMPRESS* lParam1);
+	inline int DecompressYV12Frame(ICDECOMPRESS* lParam1);
+
 	CorePNGCodecPrivate m_CodecPrivate;
 
 	DWORD m_BufferSize;
@@ -159,19 +183,20 @@ protected:
 	CxImagePNG m_Image;
 	CxImagePNG m_DeltaFrame;
 
-	CxMemFile m_MemoryBuffer;
-	//BYTE m_ZlibCompressionLevel;
-	//BYTE m_PNGFilters;
-	bool m_DecodeToRGB24;
-	//DWORD m_DropFrameThreshold;
-	WORD m_DeltaFrameCount;	
-	//bool m_DeltaFramesEnabled;
+	/// Memory buffer used for Auto-Delta frames
+	CxMemFile m_MemoryBuffer;	
+	/// The number of delta-frames since the last keyframe, 1-based. Ex. 1 means the last frame was a key frame
+	WORD m_DeltaFrameCount;
 
-	BYTE m_YUV_Mode;
+	/// Decoding mode
+	BYTE m_Output_Mode;
+	bool m_DecodeToRGB24;
+	/// Memory buffer used to hold decompressed frames when we have to convert to another format. Ex YUY2 -> RGB24
+	CxMemFile m_DecodeBuffer;	
+
 	DWORD m_Height;
 	DWORD m_HeightDouble;
 	DWORD m_Width;
-	DWORD m_ImageSize;
 	CxImagePNG Y_Channel;		
 	CxImagePNG U_Channel;		
 	CxImagePNG V_Channel;
@@ -182,6 +207,9 @@ protected:
 };
 
 BOOL CALLBACK ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+BOOL CALLBACK AboutDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
+WORD AddTooltip(HWND hwndTooltip, HWND hwndClient, LPSTR strText);
 
 DWORD CorePNG_GetRegistryValue(char *value_key, DWORD default_value);
 void CorePNG_SetRegistryValue(char *value_key, DWORD the_value);
