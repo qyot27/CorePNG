@@ -225,6 +225,7 @@ CCorePNGEncoderFilter::~CCorePNGEncoderFilter() {
 HRESULT CCorePNGEncoderFilter::CheckInputType(const CMediaType *mtIn) {
 	if (*mtIn->Type() == MEDIATYPE_Video) {
 		// Ok it's audio...
+		MPEG1VIDEOINFO *test = (MPEG1VIDEOINFO *)mtIn->Format();
 		// We need RGB
 		if (*mtIn->Subtype() == MEDIASUBTYPE_RGB24 || *mtIn->Subtype() == MEDIASUBTYPE_RGB32) {
 			// Yay \o/

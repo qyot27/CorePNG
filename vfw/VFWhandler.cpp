@@ -356,7 +356,7 @@ int VFWhandler::CompressKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2)
 				textFile.Write("\n", 1, 1);
 			}
 		}
-		CxImage scanImage = m_Image;
+		CxImagePNG scanImage = m_Image;
 		for (DWORD y1 = 0; y1 < m_Image.GetHeight(); y1++) {
 			for (DWORD x1 = 0; x1 < m_Image.GetWidth(); x1++) {
 				int x2, y2 = 0;
@@ -366,7 +366,7 @@ int VFWhandler::CompressKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2)
 					y2 = 0;
 				}
 				x2 =  scantable[x1][y1] - y2 * m_Image.GetWidth();
-				m_Image.SetPixelColor(x1, y1, scanImage.GetPixelColor(x2, y2));
+				m_Image.SetPixelColor(x2, y2, scanImage.GetPixelColor(x1, y1));
 			}
 		}
 		// Recreate the image
@@ -379,13 +379,20 @@ int VFWhandler::CompressKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2)
 					y2 = 0;
 				}
 				x2 =  scantable[x1][y1] - y2 * m_Image.GetWidth();
-				scanImage.SetPixelColor(x2, y2, m_Image.GetPixelColor(x1, y1));
+				scanImage.SetPixelColor(x1, y1, m_Image.GetPixelColor(x2, y2));				
+				
 			}
 		}
 		m_Image.Draw(GetDC(NULL));
 		scanImage.Draw(GetDC(NULL));
 		
-		m_Image.Save("D:\kim_quadrant.png", CXIMAGE_FORMAT_PNG);
+		m_Image.SetCompressionFilters(m_PNGFilters);
+		m_Image.SetCompressionLevel(m_ZlibCompressionLevel);
+		scanImage.SetCompressionFilters(m_PNGFilters);
+		scanImage.SetCompressionLevel(m_ZlibCompressionLevel);
+		scanImage.RotateLeft();
+		m_Image.RotateLeft();
+		m_Image.Save("D:\\kim_quadrant.png", CXIMAGE_FORMAT_PNG);
 		scanImage.Save("D:\\kim_orig.png", CXIMAGE_FORMAT_PNG);		
 #endif
 

@@ -68,13 +68,13 @@
 			WholeProgramOptimization="FALSE">
 			<Tool
 				Name="VCCLCompilerTool"
-				Optimization="2"
+				Optimization="4"
 				GlobalOptimizations="TRUE"
 				InlineFunctionExpansion="2"
 				EnableIntrinsicFunctions="TRUE"
 				FavorSizeOrSpeed="1"
-				OmitFramePointers="TRUE"
-				EnableFiberSafeOptimizations="TRUE"
+				OmitFramePointers="FALSE"
+				EnableFiberSafeOptimizations="FALSE"
 				OptimizeForProcessor="2"
 				AdditionalIncludeDirectories=".\;..\;..\common;..\CxImage\CxImage\;..\CxImage\png\;..\CxImage\zlib\"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL"
@@ -226,7 +226,7 @@
 					<Tool
 						Name="VCCustomBuildTool"
 						Description="Assembling $(InputName)"
-						CommandLine="ml /c /Fo$(IntDir)\$(InputName).obj  &quot;$(InputPath)&quot;
+						CommandLine="ml /c /W0 /Zi /Fo$(IntDir)\$(InputName).obj  &quot;$(InputPath)&quot;
 "
 						Outputs="$(IntDir)\$(InputName).obj"/>
 				</FileConfiguration>
@@ -235,7 +235,7 @@
 					<Tool
 						Name="VCCustomBuildTool"
 						Description="Assembling $(InputName)"
-						CommandLine="ml /c /Fo$(IntDir)\$(InputName).obj  &quot;$(InputPath)&quot;
+						CommandLine="ml /c /W2 /Zi /Fo$(IntDir)\$(InputName).obj  &quot;$(InputPath)&quot;
 "
 						Outputs="$(IntDir)\$(InputName).obj"/>
 				</FileConfiguration>

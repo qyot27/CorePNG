@@ -37,6 +37,8 @@ CrashCatcher *crasher = NULL;
 
 // The global dll handle
 HINSTANCE g_hInst;
+// Running under VirtualDub?
+//bool g_bVDub = false;
 
 // This is the DllMain.
 BOOL APIENTRY DllMain(HANDLE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
@@ -54,11 +56,25 @@ BOOL APIENTRY DllMain(HANDLE hModule, DWORD  ul_reason_for_call, LPVOID lpReserv
 
 		// Extension DLL one-time initialization
 		g_hInst = (HINSTANCE)hModule;
-		
+					
 		if (CorePNG_GetRegistryValue("Crash Catcher Enabled", 0)) {
 			// Setup the crash catcher
 			crasher = new CrashCatcher(COREPNG_VFW_VERSION);
 		}
+		/*else {
+			// Get the parent app handle
+			HMODULE hParent = GetModuleHandle(NULL);
+			// Get the filename
+			char szVDub[1024+1];
+			GetModuleFileName(hParent, szVDub, 1024);			
+			int szVDubLen = lstrlen(szVDub);
+			if (szVDubLen > 15) {
+				szVDubLen = szVDubLen - 14;
+				// compare it
+				if (!lstrcmpi(szVDub+szVDubLen, "virtualdub.exe"))
+					g_bVDub = true;
+			}
+		}*/
 
 	} else if (ul_reason_for_call == DLL_PROCESS_DETACH) {
 		ODS("In DLLMain, DLL_PROCESS_DETACH");

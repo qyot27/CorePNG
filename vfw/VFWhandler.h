@@ -111,11 +111,15 @@ void _stdcall RGBtoYUV422_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidt
 			if (msgBoxRet == IDYES) { \
 					throw; \
 			} \
-		} \
+		}\
 		return ICERR_ERROR; \
 	};
-#else
+#endif
+
+#ifndef VFW_CODEC_CRASH_CATCHER_START
 #define VFW_CODEC_CRASH_CATCHER_START
+#endif
+#ifndef VFW_CODEC_CRASH_CATCHER_END
 #define VFW_CODEC_CRASH_CATCHER_END
 #endif
 
@@ -172,6 +176,53 @@ struct CorePNGCodecSettings {
 	BYTE m_DeltaFrameAuto;
 	WORD m_DeltaFrameLimit;
 	BYTE m_EnableMultiThreading;
+};
+
+// wrapper for whatever critical section we have
+class CCritSec {
+public:
+	CCritSec() {
+		InitializeCriticalSection(&m_CritSec);
+	};
+	~CCritSec() {
+		DeleteCriticalSection(&m_CritSec);
+	};
+	void Lock() {
+		EnterCriticalSection(&m_CritSec);
+	};
+	void Unlock() {
+		LeaveCriticalSection(&m_CritSec);
+	};
+
+protected:
+	CRITICAL_SECTION m_CritSec;
+private:
+	// Make copy constructor and assignment operator inaccessible
+	// Copying a critical section is a bad idea :P
+	CCritSec(const CCritSec &refCritSec);
+	CCritSec &operator=(const CCritSec &refCritSec);
+};
+
+// locks a critical section, and unlocks it automatically
+// when the lock goes out of scope
+class CAutoLock {
+public:
+	CAutoLock(CCritSec *plock) {
+		m_pLock = plock;
+		m_pLock->Lock();
+	};
+	~CAutoLock() {
+		m_pLock->Unlock();
+	};
+
+protected:
+	CCritSec *m_pLock;
+
+private:
+	// Make copy constructor and assignment operator inaccessible
+	// Copying a AutoLock is a even worse idea :P
+	CAutoLock(const CAutoLock &refAutoLock);
+	CAutoLock &operator=(const CAutoLock &refAutoLock);
 };
 
 class VFWhandler;

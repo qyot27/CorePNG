@@ -364,7 +364,7 @@ std::basic_string<TCHAR> CrashCatcher::GetAddressInfo(const BYTE* caller, HINSTA
 	
 	DWORD relativeAddress = caller - (BYTE*)hInstance;
 	
-	_sntprintf(szScratchPad, 255, _T("%08X : %s \r\n"), caller, moduleFilename);
+	_sntprintf(szScratchPad, 255, _T("%08X : %s \r\n"), (DWORD)caller, moduleFilename);
 	s = szScratchPad;
 
 #ifdef USING_MAPPING_FILE
