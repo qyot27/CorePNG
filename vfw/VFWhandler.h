@@ -34,6 +34,7 @@ struct CorePNGCodecSettings {
 	BYTE m_PNGFilters;
 	DWORD m_DropFrameThreshold;
 	BYTE m_DeltaFramesEnabled;
+	BYTE m_DeltaFrameAuto;
 	WORD m_DeltaFrameLimit;
 };
 
@@ -72,6 +73,9 @@ public:
 
 	BOOL ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 protected:
+	inline int CompresssKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2);
+	inline int CompresssDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2);
+	inline int CompresssDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2);
 	inline RGBQUAD AveragePixels(DWORD x, DWORD y);
 	
 	DWORD m_BufferSize;
@@ -79,6 +83,7 @@ protected:
 	CxImagePNG m_Image;
 	CxImagePNG m_DeltaFrame;
 
+	CxMemFile m_MemoryBuffer;
 	//BYTE m_ZlibCompressionLevel;
 	//BYTE m_PNGFilters;
 	bool m_DecodeToRGB24;

@@ -108,15 +108,15 @@ BEGIN
     PUSHBUTTON      "Cancel",IDC_BUTTON_CANCEL,164,156,50,14
     GROUPBOX        "",IDC_STATIC,2,48,218,104
     CONTROL         "Always decode to RGB24",IDC_CHECK_DECODE_RGB24,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,119,125,97,10
+                    BS_AUTOCHECKBOX | WS_TABSTOP,120,138,97,10
     CONTROL         "Enable Delta-Frames (unstable)",IDC_CHECK_DELTA_FRAMES,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,100,57,116,10
-    LTEXT           "Drop Frame Threshold",IDC_STATIC,119,97,76,8
-    EDITTEXT        IDC_EDIT_DROP_THRESHOLD,121,106,40,14,ES_AUTOHSCROLL | 
+    LTEXT           "Drop Frame Threshold",IDC_STATIC,117,112,76,8
+    EDITTEXT        IDC_EDIT_DROP_THRESHOLD,119,121,40,14,ES_AUTOHSCROLL | 
                     ES_NUMBER
     CONTROL         "Spin1",IDC_SPIN_DROP_THRESHOLD,"msctls_updown32",
                     UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | 
-                    UDS_ARROWKEYS,161,105,9,14
+                    UDS_ARROWKEYS,159,120,9,14
     LTEXT           "Compression Level",IDC_STATIC,7,59,64,8
     COMBOBOX        IDC_COMBO_COMPRESSION_LEVEL,7,69,64,55,CBS_DROPDOWNLIST | 
                     CBS_SORT | WS_VSCROLL | WS_TABSTOP
@@ -135,11 +135,13 @@ BEGIN
                     BS_AUTOCHECKBOX | WS_TABSTOP,60,120,43,10
     CONTROL         "None Filter",IDC_CHECK_PNG_FILTER_NONE,"Button",
                     BS_AUTOCHECKBOX | WS_TABSTOP,60,96,50,10
-    RTEXT           "Keyframe Interval :",IDC_STATIC,100,71,64,8
-    EDITTEXT        IDC_EDIT_KEYFRAME_INTERVAL,167,68,37,14,ES_AUTOHSCROLL
+    RTEXT           "Keyframe Interval :",IDC_STATIC,116,81,60,8
+    EDITTEXT        IDC_EDIT_KEYFRAME_INTERVAL,177,78,37,14,ES_AUTOHSCROLL
     CONTROL         "Spin1",IDC_SPIN_KEYFRAME_INTERVAL,"msctls_updown32",
                     UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | 
-                    UDS_ARROWKEYS,208,68,9,14
+                    UDS_ARROWKEYS,212,78,9,14
+    CONTROL         "Auto Delta-Frames",IDC_CHECK_AUTO_DELTA_FRAMES,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,100,68,80,10
 END
 
 

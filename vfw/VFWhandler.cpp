@@ -16,6 +16,7 @@ VFWhandler::VFWhandler(void)
 	m_BufferSize = 0;
 	m_DeltaFrameCount = 0;
 	LoadSettings();
+	m_MemoryBuffer.Open();
 }
 
 VFWhandler::~VFWhandler(void)
@@ -28,6 +29,7 @@ void VFWhandler::LoadSettings() {
 	m_ZlibCompressionLevel = CorePNG_GetRegistryValue("zlib Compression Level", 6);
 	m_PNGFilters = CorePNG_GetRegistryValue("PNG Filters", PNG_ALL_FILTERS);
 	m_DeltaFramesEnabled = CorePNG_GetRegistryValue("Use Delta Frames", 0);
+	m_DeltaFrameAuto = CorePNG_GetRegistryValue("Auto Delta Frames", 0);
 	m_DecodeToRGB24 = CorePNG_GetRegistryValue("Always Decode to RGB24", 0);
 	m_DropFrameThreshold = CorePNG_GetRegistryValue("Drop Frame Threshold", 0);
 }
@@ -37,6 +39,7 @@ void VFWhandler::SaveSettings() {
 	CorePNG_SetRegistryValue("zlib Compression Level", m_ZlibCompressionLevel);
 	CorePNG_SetRegistryValue("PNG Filters", m_PNGFilters);
 	CorePNG_SetRegistryValue("Use Delta Frames", m_DeltaFramesEnabled);
+	CorePNG_SetRegistryValue("Auto Delta Frames", m_DeltaFrameAuto);
 	CorePNG_SetRegistryValue("Always Decode to RGB24", m_DecodeToRGB24);
 	CorePNG_SetRegistryValue("Drop Frame Threshold", m_DropFrameThreshold);
 }
@@ -65,107 +68,147 @@ void VFWhandler::VFW_configure(HWND hParentWindow)
 int VFWhandler::VFW_compress(ICCOMPRESS* lParam1, DWORD lParam2)
 {
 	VFW_CODEC_CRASH_CATCHER_START;
-
-	DWORD lActual = lParam1->lpbiInput->biSizeImage;
-
+	
 	if (!m_DeltaFrameCount) {
 		// Now compress the frame.
-		if (lParam1->lpbiInput->biBitCount == 24) {
-			if (m_DropFrameThreshold != 0) {
-				DWORD imageDiff = abs(memcmp(m_Image.GetBits(), lParam1->lpInput, lActual));
-				if (imageDiff < m_DropFrameThreshold) {
-					// Drop this frame
-					lActual = 0;
-				}
-			}
-			memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
-			if (m_DeltaFramesEnabled) {
-				m_DeltaFrame = m_Image;
-				m_DeltaFrameCount++;
-			}
-		} else if (lParam1->lpbiInput->biBitCount == 32) {
-			m_Image.CreateFromARGB(lParam1->lpbiInput->biWidth, lParam1->lpbiInput->biHeight, (BYTE *)lParam1->lpInput);
-			m_Image.Flip();
-			/*
-			for (DWORD height = 0; height < m_Image.GetHeight(); height++) {
-				for (DWORD width = 0; width < m_Image.GetWidth(); width++) {
-					if (m_Image.AlphaGet(width, height) != 0)
-						lActual = lActual;
-				}
-			}
-			*/
-		}
-		if (lActual != 0) {
-			CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
-			m_Image.Encode(&memFile);	
-			//m_Image.Draw(GetDC(NULL));
+		if (CompresssKeyFrame(lParam1, lParam2) != ICERR_OK)
+			return ICERR_ERROR;
 
-			lActual = memFile.Tell();	
-		}
-		// Now put the result back	
-		lParam1->lpbiOutput->biSizeImage = lActual;
-		//lParam1->lpbiOutput->biCompression = FOURCC_PNG;
-		lParam1->dwFlags = ICCOMPRESS_KEYFRAME;
-		*lParam1->lpdwFlags = AVIIF_KEYFRAME;
 	} else {
 		// We compress a delta frame
-		if (lParam1->lpbiInput->biBitCount == 24) {
-			memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
-			if (!m_Image.AlphaIsValid())
-				m_Image.AlphaCreate();
-			else
-				m_Image.AlphaClear();
-			
-			// Compare to the previous frame
-			RGBQUAD previousPixel;
-			RGBQUAD currentPixel;
-			//m_Image.Draw(GetDC(NULL));
-			//m_DeltaFrame.Draw(GetDC(NULL));
-			m_Image.Mix(m_DeltaFrame, CxImage::ImageOpType::OpSub2);
-			//m_Image.Draw(GetDC(NULL));
-			/*for (DWORD y = 0; y < m_Image.GetHeight(); y++) {
-				for (DWORD x = 0; x < m_Image.GetWidth(); x++) {
-					currentPixel = m_Image.GetPixelColor(x, y);
-					previousPixel = m_DeltaFrame.GetPixelColor(x, y);
-					if (!memcmp(&currentPixel, &previousPixel, sizeof(RGBQUAD))) {
-						// Matching pixels
-						// Average pixels		
-						memset(&currentPixel, 0, sizeof(RGBQUAD));
-						m_Image.SetPixelColor(x, y, currentPixel, true);		
-						//m_Image.AlphaSet(x, y, 0);
-					}
-				}
-			}*/
-			// Replace the delta frame with the full frame
-			memcpy(m_DeltaFrame.GetBits(), lParam1->lpInput, lActual);
-			if (m_DeltaFrameCount++ > m_DeltaFrameLimit)
-				m_DeltaFrameCount = 0;
-			
+		if (!m_DeltaFrameAuto) {
+			// Every frame is a delta
+			if (CompresssDeltaFrame(lParam1, lParam2) != ICERR_OK)
+				return ICERR_ERROR;
 		} else {
-			// We only support delta-frames with 24-bit compression
-			return ICERR_ERROR;
+			// Use an Auto setting
+			if (CompresssDeltaFrameAuto(lParam1, lParam2) != ICERR_OK)
+				return ICERR_ERROR;
 		}
-		CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
-		m_Image.Encode(&memFile);	
-		//m_Image.Draw(GetDC(NULL));
-
-		lActual = memFile.Tell();	
-
-		// Now put the result back	
-		lParam1->lpbiOutput->biSizeImage = lActual;
-		//lParam1->lpbiOutput->biSize = sizeof(BITMAPINFOHEADER);
-		//lParam1->lpbiOutput->biWidth = lParam1->lpbiInput->biWidth;
-		//lParam1->lpbiOutput->biHeight = lParam1->lpbiInput->biWidth;
-		//lParam1->lpbiOutput->biCompression = FOURCC_PNG;
-		//lParam1->lpbiOutput->biClrUsed = 0;
-		lParam1->dwFlags = 0;
-		*lParam1->lpdwFlags = 0;
 	}
 	return ICERR_OK;
 
 	VFW_CODEC_CRASH_CATCHER_END;
 }
 
+int VFWhandler::CompresssKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2) 
+{
+	DWORD lActual = lParam1->lpbiInput->biSizeImage;
+
+	if (lParam1->lpbiInput->biBitCount == 24) {
+		if (m_DropFrameThreshold != 0) {
+			DWORD imageDiff = abs(memcmp(m_Image.GetBits(), lParam1->lpInput, lActual));
+			if (imageDiff < m_DropFrameThreshold) {
+				// Drop this frame
+				lActual = 0;
+			}
+		}
+		memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
+		if (m_DeltaFramesEnabled) {
+			m_DeltaFrame = m_Image;
+			m_DeltaFrameCount++;
+		}
+	} else if (lParam1->lpbiInput->biBitCount == 32) {
+		m_Image.CreateFromARGB(lParam1->lpbiInput->biWidth, lParam1->lpbiInput->biHeight, (BYTE *)lParam1->lpInput);
+		m_Image.Flip();
+	}
+	if (lActual != 0) {
+		if (lParam1->lpOutput != NULL) {
+			// Write directly to the VFW buffer
+			CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
+			m_Image.Encode(&memFile);	
+			//m_Image.Draw(GetDC(NULL));
+
+			lActual = memFile.Tell();	
+		} else {
+			// Write to our tempory memory buffer instead
+			m_MemoryBuffer.Seek(0, 0);
+			m_Image.Encode(&m_MemoryBuffer);	
+			//m_Image.Draw(GetDC(NULL));
+
+			lActual = m_MemoryBuffer.Tell();	
+		}
+		// Now put the result back	
+		lParam1->lpbiOutput->biSizeImage = lActual;
+		lParam1->dwFlags = ICCOMPRESS_KEYFRAME;
+		*lParam1->lpdwFlags = AVIIF_KEYFRAME;	
+	} else {
+		// Drop a frame	
+		lParam1->lpbiOutput->biSizeImage = 0;
+		lParam1->dwFlags = 0;
+		*lParam1->lpdwFlags = 0;	
+	}
+
+	return ICERR_OK;
+};
+
+int VFWhandler::CompresssDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2)
+{
+	DWORD lActual = lParam1->lpbiInput->biSizeImage;
+
+	if (lParam1->lpbiInput->biBitCount == 24) {
+		memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
+
+		// Compare to the previous frame
+		m_Image.Mix(m_DeltaFrame, CxImage::ImageOpType::OpSub2);
+
+		// Replace the delta frame with the full frame
+		memcpy(m_DeltaFrame.GetBits(), lParam1->lpInput, lActual);
+		if (m_DeltaFrameCount++ > m_DeltaFrameLimit)
+			m_DeltaFrameCount = 0;
+
+	} else {
+		// We only support delta-frames with 24-bit compression
+		return ICERR_ERROR;
+	}
+	CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
+	m_Image.Encode(&memFile);	
+	//m_Image.Draw(GetDC(NULL));
+
+	lActual = memFile.Tell();	
+
+	// Now put the result back	
+	lParam1->lpbiOutput->biSizeImage = lActual;
+	lParam1->dwFlags = 0;
+	*lParam1->lpdwFlags = 0;	
+
+	return ICERR_OK;
+};
+
+int VFWhandler::CompresssDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2)
+{
+	void* VFW_Buffer = NULL;
+	DWORD DeltaFrameSize = -1;
+	DWORD KeyFrameSize = -1;
+	if (CompresssDeltaFrame(lParam1, lParam2) == ICERR_OK) {
+		DeltaFrameSize = lParam1->lpbiOutput->biSizeImage;		
+	} else {
+		return CompresssKeyFrame(lParam1, lParam2);
+	}
+
+	VFW_Buffer = lParam1->lpOutput;
+	lParam1->lpOutput = NULL;
+	if (CompresssKeyFrame(lParam1, lParam2) == ICERR_OK) {
+		// Restore the origanl VW buffer
+		lParam1->lpOutput = VFW_Buffer;
+		KeyFrameSize = lParam1->lpbiOutput->biSizeImage;
+		if (KeyFrameSize < DeltaFrameSize) {
+			// Keyframe is smaller than a delta frame
+			// Replace the delta frame data in the VFW buffer with ours
+			memcpy(lParam1->lpOutput, m_MemoryBuffer.GetBuffer(), KeyFrameSize);
+		} else {
+			// Delta frame gets better compression
+			// Restore the size (the VFW buffer already has the delta frame data)
+			lParam1->lpbiOutput->biSizeImage = DeltaFrameSize;			
+			// Set the delta frame flags
+			lParam1->dwFlags = 0;
+			*lParam1->lpdwFlags = 0;	
+		}
+	}
+
+
+	return ICERR_OK;
+};
 /******************************************************************************
 * VFW_compress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output);
 *
@@ -586,6 +629,7 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 
 			CheckDlgButton(hwndDlg, IDC_CHECK_DECODE_RGB24, m_DecodeToRGB24);
 			CheckDlgButton(hwndDlg, IDC_CHECK_DELTA_FRAMES, m_DeltaFramesEnabled);
+			CheckDlgButton(hwndDlg, IDC_CHECK_AUTO_DELTA_FRAMES, m_DeltaFrameAuto);
 						
 			SendDlgItemMessage(hwndDlg,	IDC_SPIN_KEYFRAME_INTERVAL, UDM_SETRANGE, 0, (LPARAM)MAKELONG(1000, 1));
 			SendDlgItemMessage(hwndDlg,	IDC_SPIN_KEYFRAME_INTERVAL, UDM_SETPOS, 0, m_DeltaFrameLimit+1);
@@ -653,7 +697,8 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 					}
 					m_ZlibCompressionLevel = GetDlgItemInt(hwndDlg, IDC_COMBO_COMPRESSION_LEVEL, NULL, FALSE);
 					m_DecodeToRGB24 = IsDlgButtonChecked(hwndDlg, IDC_CHECK_DECODE_RGB24);
-					m_DeltaFramesEnabled = IsDlgButtonChecked(hwndDlg, IDC_CHECK_DELTA_FRAMES);
+					m_DeltaFramesEnabled = (hwndDlg, IDC_CHECK_DELTA_FRAMES);
+					m_DeltaFrameAuto = IsDlgButtonChecked(hwndDlg, IDC_CHECK_AUTO_DELTA_FRAMES);
 					m_DropFrameThreshold = SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_GETPOS, 0, 0);
 					m_DeltaFrameLimit = SendDlgItemMessage(hwndDlg,	IDC_SPIN_KEYFRAME_INTERVAL, UDM_GETPOS, 0, 0)-1;
 					
