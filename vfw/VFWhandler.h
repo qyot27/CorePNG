@@ -17,6 +17,23 @@
 #ifndef __VFW_HANDLER_H_
 #define __VFW_HANDLER_H_
 
+#ifdef _DEBUG
+//Memory Debugging includes
+#include <stdlib.h>
+#include <crtdbg.h>
+#endif
+
+#ifdef _DEBUG
+   #define DEBUG_CLIENTBLOCK   new( _CLIENT_BLOCK, __FILE__, __LINE__)
+#else
+   #define DEBUG_CLIENTBLOCK
+#endif // _DEBUG
+
+#ifdef _DEBUG
+#define new DEBUG_CLIENTBLOCK
+#endif
+
+
 #include <windows.h>
 #include <commctrl.h>
 #include <vfw.h>

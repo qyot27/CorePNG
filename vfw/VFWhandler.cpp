@@ -427,6 +427,12 @@ int VFWhandler::CompressDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2)
 		if (m_DeltaFrameCount++ > m_DeltaFrameLimit)
 			m_DeltaFrameCount = 0;
 
+		// Actually encode the frame
+		CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
+		m_Image.Encode(&memFile);	
+		//m_Image.Draw(GetDC(NULL));
+		lActual = memFile.Tell();	
+
 	} else if (lParam1->lpbiInput->biBitCount == 32) {
 		if (m_DropFrameThreshold != 0) {
 			DWORD imageDiff = abs(memcmp(m_DeltaFrame.GetBits(), lParam1->lpInput, lActual));
@@ -526,12 +532,16 @@ int VFWhandler::CompressDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2)
 int VFWhandler::VFW_compress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output)
 {
 	VFW_CODEC_CRASH_CATCHER_START;
-	if(input->biCompression == FOURCC_YUY2)
+
+	//if ((input->biWidth / 2) * 2 != input->biWidth || (input->biHeight / 2) * 2 != input->biHeight)
+	//	return ICERR_BADFORMAT;
+
+	if (input->biCompression == FOURCC_YUY2)
 		return ICERR_OK;
-	if(input->biCompression == FOURCC_YV12)
+	if (input->biCompression == FOURCC_YV12)
 		return ICERR_OK;
 
-	if(input->biCompression == BI_RGB 
+	if (input->biCompression == BI_RGB 
 		&& (input->biBitCount == 24 || input->biBitCount == 32)) 
 	{
 		return ICERR_OK;
@@ -1015,10 +1025,25 @@ int VFWhandler::VFW_decompress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* 
 {
 	VFW_CODEC_CRASH_CATCHER_START;
 
-	if (input->biSize == sizeof(BITMAPINFOHEADER) + sizeof(CorePNGCodecPrivate))
+	if (input->biSize == sizeof(BITMAPINFOHEADER) + sizeof(CorePNGCodecPrivate)) {
 		memcpy(&m_CodecPrivate, ((BYTE *)input)+sizeof(BITMAPINFOHEADER), sizeof(CorePNGCodecPrivate));
-	else
-		memset(&m_CodecPrivate, 0, sizeof(CorePNGCodecPrivate));
+	} else {
+		m_CodecPrivate = CorePNGCodecPrivate();
+	}
+
+	// Double-check the output format
+	if (m_CodecPrivate.bType == PNGFrameType_RGB24) {
+		if (output->biCompression != BI_RGB)
+			return ICERR_BADFORMAT;
+
+	} else if (m_CodecPrivate.bType == PNGFrameType_YUY2) {
+		if (output->biCompression != FOURCC_YUY2)
+			return ICERR_BADFORMAT;
+
+	} else if (m_CodecPrivate.bType == PNGFrameType_YV12) {
+		if (output->biCompression != FOURCC_YV12)
+			return ICERR_BADFORMAT;
+	}
 
 	m_Image.Create(input->biWidth, input->biHeight, 24);
 	//mycodec->Configure(*myconfig);

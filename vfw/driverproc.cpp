@@ -28,7 +28,7 @@
 ******************************************************************************/
 #ifdef _DEBUG
 //Memory Debugging define
-#define _CRTDBG_MAP_ALLOC 
+//#define _CRTDBG_MAP_ALLOC 
 #include <stdlib.h>
 #include <crtdbg.h>
 #endif
@@ -71,16 +71,12 @@ extern "C" __declspec(dllexport) LRESULT WINAPI DriverProc(DWORD dwDriverId, HDR
 	// They were like this when I found them.
 	case DRV_LOAD :
 	case DRV_FREE :
-		DRV_OK;
+		return DRV_OK;
 
 	// This seems to be where a new codec instance is created.
 	case DRV_OPEN :
-		//{
-		//ICOPEN* icopen = (ICOPEN*)lParam2;
-		//if(handler == 0)
-			handler = new VFWhandler();
+		handler = new VFWhandler();
 		return (LRESULT)handler;
-		//}
 
 	// Obviously if open creates, close should delete.
 	case DRV_CLOSE :
@@ -147,7 +143,11 @@ extern "C" __declspec(dllexport) LRESULT WINAPI DriverProc(DWORD dwDriverId, HDR
 		}
 		else
 		{
-			memcpy((void*)lParam1, handler, handler->wSize);
+			if (sizeof(CorePNGCodecSettings) >= lParam2) {
+				memcpy((void*)lParam1, handler, lParam2);
+			} else {
+				memcpy((void*)lParam1, handler, sizeof(CorePNGCodecSettings));
+			}
 		}
 		return ICERR_OK;
 
@@ -162,6 +162,7 @@ extern "C" __declspec(dllexport) LRESULT WINAPI DriverProc(DWORD dwDriverId, HDR
 		else
 		{
 			memcpy((void*)handler, (void*)lParam1, handler->wSize);
+			lParam2 = handler->wSize;
 		}
 		return ICERR_OK;
 
@@ -177,6 +178,8 @@ extern "C" __declspec(dllexport) LRESULT WINAPI DriverProc(DWORD dwDriverId, HDR
 	case ICM_SETQUALITY :
 	case ICM_GETBUFFERSWANTED :
 	case ICM_GETDEFAULTKEYFRAMERATE :
+		if (handler != NULL)
+			return handler->m_DeltaFrameLimit;
 		return ICERR_UNSUPPORTED;
 
 // Ok now we come to the interesting part!
