@@ -20,6 +20,7 @@
 #include <windows.h>
 #include <commctrl.h>
 #include <vfw.h>
+#include <assert.h>
 #include "ximage.h"
 #include "ximapng.h"
 

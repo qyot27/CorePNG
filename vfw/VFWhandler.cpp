@@ -13,6 +13,10 @@
 // WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 //
 //-----------------------------------------------------------------------------
+/*
+	About 768 byte of 256 palette overhead per image.
+
+*/
 
 #include "VFWhandler.h"
 
@@ -31,10 +35,13 @@ bool VFWhandler::CreateYUY2(BITMAPINFOHEADER* input)
 	Y_Channel.Create(m_Width, m_Height, 8);
 	U_Channel.Create(m_Width/2, m_Height, 8);
 	V_Channel.Create(m_Width/2, m_Height, 8);
-
-	Y_Channel.SetGrayPalette();
-	U_Channel.SetGrayPalette();
-	V_Channel.SetGrayPalette();
+	
+	Y_Channel.GrayScale();
+	U_Channel.GrayScale();
+	V_Channel.GrayScale();
+	//Y_Channel.SetGrayPalette();
+	//U_Channel.SetGrayPalette();
+	//V_Channel.SetGrayPalette();
 
 	Y_Channel_Delta = Y_Channel;
 	U_Channel_Delta = U_Channel;
@@ -132,9 +139,9 @@ bool VFWhandler::CreateYV12(BITMAPINFOHEADER* input)
 	U_Channel.Create(m_Width/2, m_Height/2, 8);
 	V_Channel.Create(m_Width/2, m_Height/2, 8);
 
-	Y_Channel.SetGrayPalette();
-	U_Channel.SetGrayPalette();
-	V_Channel.SetGrayPalette();
+	Y_Channel.GrayScale();
+	U_Channel.GrayScale();
+	V_Channel.GrayScale();
 
 	Y_Channel_Delta = Y_Channel;
 	U_Channel_Delta = U_Channel;
@@ -176,31 +183,35 @@ void VFWhandler::CompressYV12KeyFrame(BYTE *inputYUV2Data, CxMemFile *targetBuff
 void VFWhandler::CompressYV12DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer)
 {
 	// YV12
-	BYTE *Y_data = (BYTE *)Y_Channel.GetBits();
-	BYTE *U_data = (BYTE *)U_Channel.GetBits();
+	BYTE* inputYUV2DataOld = inputYUV2Data;
+	BYTE *Y_data = (BYTE *)Y_Channel.GetBits();	
 	BYTE *V_data = (BYTE *)V_Channel.GetBits();
-	
+	BYTE *U_data = (BYTE *)U_Channel.GetBits();
+
 	BYTE *Y_Delta_data = (BYTE *)Y_Channel_Delta.GetBits();
 	BYTE *U_Delta_data = (BYTE *)U_Channel_Delta.GetBits();
 	BYTE *V_Delta_data = (BYTE *)V_Channel_Delta.GetBits();
+
+	for (DWORD d = 0; d < Y_Channel.GetSizeImage(); d++)
+		Y_data++[0] = inputYUV2Data++[0] - Y_Delta_data++[0];
+		
+	for (DWORD d = 0; d < V_Channel.GetSizeImage(); d++)
+		V_data++[0] = inputYUV2Data++[0] - V_Delta_data++[0];
+
+	for (DWORD d = 0; d < U_Channel.GetSizeImage(); d++)
+		U_data++[0] = inputYUV2Data++[0] - U_Delta_data++[0];
+
+	inputYUV2Data = inputYUV2DataOld;
+	memcpy(Y_Channel_Delta.GetBits(), inputYUV2Data, Y_Channel_Delta.GetSizeImage());
+	inputYUV2Data += Y_Channel_Delta.GetSizeImage();
+	memcpy(V_Channel_Delta.GetBits(), inputYUV2Data, V_Channel_Delta.GetSizeImage());
+	inputYUV2Data += V_Channel_Delta.GetSizeImage();
+	memcpy(U_Channel_Delta.GetBits(), inputYUV2Data, U_Channel_Delta.GetSizeImage());
+
 	
-	// Copy and Compare to the previous frame
-	for (DWORD height = 0; height < m_HeightDouble; height++) {
-		for (DWORD width = 0; width < m_Width; width += 4) {
-			Y_data++[0] = inputYUV2Data[width+0] - Y_Delta_data[0];
-			Y_Delta_data++[0] = inputYUV2Data[width+0];
-
-			U_data++[0] = inputYUV2Data[width+1] - U_Delta_data[0];
-			U_Delta_data++[0] = inputYUV2Data[width+1];
-
-			Y_data++[0] = inputYUV2Data[width+2] - Y_Delta_data[0];
-			Y_Delta_data++[0] = inputYUV2Data[width+2];
-
-			V_data++[0] = inputYUV2Data[width+3] - V_Delta_data[0];
-			V_Delta_data++[0] = inputYUV2Data[width+3];
-		}
-		inputYUV2Data += width;
-	}		
+	//memcpy(Y_Channel_Delta.GetBits(), Y_Channel.GetBits(), Y_Channel.GetSizeImage());
+	//memcpy(U_Channel_Delta.GetBits(), U_Channel.GetBits(), U_Channel.GetSizeImage());
+	//memcpy(V_Channel_Delta.GetBits(), V_Channel.GetBits(), V_Channel.GetSizeImage());
 
 	if (m_DeltaFrameCount++ > m_DeltaFrameLimit)
 		m_DeltaFrameCount = 0;
@@ -211,8 +222,8 @@ void VFWhandler::CompressYV12DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBu
 	
 	// Encode YV12
 	Y_Channel.Encode(targetBuffer);	
-	U_Channel.Encode(targetBuffer);	
 	V_Channel.Encode(targetBuffer);	
+	U_Channel.Encode(targetBuffer);		
 };
 
 VFWhandler::VFWhandler(void)
@@ -450,6 +461,12 @@ int VFWhandler::CompressDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2)
 		// Encode a YUV2 frame
 		CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);			
 		CompressYUY2DeltaFrame((BYTE *)lParam1->lpInput, &memFile);	
+		lActual = memFile.Tell();	
+	
+	} else if (lParam1->lpbiInput->biCompression == FOURCC_YV12 && lParam1->lpbiInput->biBitCount == 12) {
+		// Encode a YUV2 frame
+		CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);			
+		CompressYV12DeltaFrame((BYTE *)lParam1->lpInput, &memFile);	
 		lActual = memFile.Tell();	
 	}	
 
@@ -742,6 +759,8 @@ int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 			memcpy(lParam1->lpOutput, m_Image.GetBits(), lParam1->lpbiOutput->biSizeImage);
 		}
 	} else if (m_CodecPrivate.bType == PNGFrameType_YUY2) {
+		assert(lParam1->lpbiOutput->biCompression == FOURCC_YUY2);
+
 		// Preserve the previous frame
 		if (lParam1->dwFlags == ICDECOMPRESS_NOTKEYFRAME) {
 			Y_Channel_Delta = Y_Channel;
@@ -758,6 +777,9 @@ int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 		//Y_Channel.Draw(GetDC(NULL));
 		//U_Channel.Draw(GetDC(NULL));
 		//V_Channel.Draw(GetDC(NULL));
+		//Y_Channel_Delta.Draw(GetDC(NULL));
+		//U_Channel_Delta.Draw(GetDC(NULL));
+		//V_Channel_Delta.Draw(GetDC(NULL));
 
 		if (lParam1->dwFlags == ICDECOMPRESS_NOTKEYFRAME) {
 			// Mix the old image and the new image together
@@ -770,18 +792,29 @@ int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 			BYTE *V_Delta_data = (BYTE *)V_Channel_Delta.GetBits();
 
 			// Copy and Compare to the previous frame
-			for (DWORD height = 0; height < m_HeightDouble; height++) {
-				for (DWORD width = 0; width < m_Width; width += 4) {
-					Y_data++[0] = Y_data[width+0] + Y_Delta_data++[0];
-					U_data++[0] = U_data[width+1] + U_Delta_data++[0];
-					Y_data++[0] = Y_data[width+2] + Y_Delta_data++[0];
-					V_data++[0] = V_data[width+3] + V_Delta_data++[0];					
+			for (DWORD height = 0; height < Y_Channel.GetHeight()*2; height++) {
+				for (DWORD width = 0; width < Y_Channel.GetWidth(); width += 4) {
+					Y_data[0] = Y_data[0] + Y_Delta_data[0];
+					Y_data++;
+					Y_Delta_data++;
+					
+					U_data[0] = U_data[0] + U_Delta_data[0];
+					U_data++;
+					U_Delta_data++;
+					
+					Y_data[0] = Y_data[0] + Y_Delta_data[0];
+					Y_data++;
+					Y_Delta_data++;
+					
+					V_data[0] = V_data[0] + V_Delta_data[0];					
+					V_data++;
+					V_Delta_data++;
 				}				
 			}		
 
-			Y_Channel = Y_Channel_Delta;
-			U_Channel = U_Channel_Delta;
-			V_Channel = V_Channel_Delta;
+			Y_Channel_Delta = Y_Channel;
+			U_Channel_Delta = U_Channel;
+			V_Channel_Delta = V_Channel;
 		}
 
 		// Merge and Copy the decoded YUV channels into the output buffer
@@ -802,6 +835,8 @@ int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 			outputYUV2Data += width;
 		}
 	} else if (m_CodecPrivate.bType == PNGFrameType_YV12) {
+		assert(lParam1->lpbiOutput->biCompression == FOURCC_YV12);
+
 		// Preserve the previous frame
 		if (lParam1->dwFlags == ICDECOMPRESS_NOTKEYFRAME) {
 			Y_Channel_Delta = Y_Channel;
@@ -829,28 +864,37 @@ int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 			BYTE *U_Delta_data = (BYTE *)U_Channel_Delta.GetBits();
 			BYTE *V_Delta_data = (BYTE *)V_Channel_Delta.GetBits();
 
+			for (DWORD d = 0; d < Y_Channel.GetSizeImage(); d++)
+				Y_data[0] = Y_data++[0] + Y_Delta_data++[0];
+			
+			for (DWORD d = 0; d < U_Channel.GetSizeImage(); d++)
+				U_data[0] = U_data++[0] + U_Delta_data++[0];
+			
+			for (DWORD d = 0; d < V_Channel.GetSizeImage(); d++)
+				V_data[0] = U_data++[0] + V_Delta_data++[0];
+
 			// Copy and Compare to the previous frame
-			for (DWORD height = 0; height < m_HeightDouble; height++) {
-				for (DWORD width = 0; width < m_Width; width += 4) {
+			/*for (DWORD height = 0; height < Y_Channel.GetHeight()*2; height++) {
+				for (DWORD width = 0; width < Y_Channel.GetWidth(); width += 4) {
 					Y_data++[0] = Y_data[width+0] + Y_Delta_data++[0];
 					U_data++[0] = U_data[width+1] + U_Delta_data++[0];
 					Y_data++[0] = Y_data[width+2] + Y_Delta_data++[0];
 					V_data++[0] = V_data[width+3] + V_Delta_data++[0];					
 				}				
-			}		
+			}		*/
 
-			Y_Channel = Y_Channel_Delta;
-			U_Channel = U_Channel_Delta;
-			V_Channel = V_Channel_Delta;
+			Y_Channel_Delta = Y_Channel;
+			U_Channel_Delta = U_Channel;
+			V_Channel_Delta = V_Channel;
 		}
 
 		// Merge and Copy the decoded YUV channels into the output buffer
 		BYTE *outputYUV2Data = (BYTE *)lParam1->lpOutput;
-		memcpy(outputYUV2Data, Y_Channel.GetBits(), Y_Channel.GetSize());
-		outputYUV2Data += Y_Channel.GetSize();
-		memcpy(outputYUV2Data, V_Channel.GetBits(), V_Channel.GetSize());
-		outputYUV2Data += V_Channel.GetSize();
-		memcpy(outputYUV2Data, U_Channel.GetBits(), U_Channel.GetSize());
+		memcpy(outputYUV2Data, Y_Channel.GetBits(), Y_Channel.GetSizeImage());
+		outputYUV2Data += Y_Channel.GetSizeImage();
+		memcpy(outputYUV2Data, U_Channel.GetBits(), U_Channel.GetSizeImage());
+		outputYUV2Data += U_Channel.GetSizeImage();
+		memcpy(outputYUV2Data, V_Channel.GetBits(), V_Channel.GetSizeImage());
 		
 		
 		//memset(lParam1->lpOutput, 0, lParam1->lpbiOutput->biSizeImage);				
