@@ -6,6 +6,8 @@
 #define IDD_ABOUTBOX                    100
 #define IDS_ABOUTBOX                    101
 #define IDD_PNG2AVI2PNG_DIALOG          102
+#define IDD_DIALOG_OPTIONS              131
+#define IDD_DIALOG1                     132
 #define IDC_RADIO_AVI2PNG               1002
 #define IDC_RADIO_PNG2AVI               1003
 #define IDC_PROGRESS_GAUGE              1004
@@ -18,15 +20,20 @@
 #define IDC_BUTTON_ADD                  1011
 #define IDC_BUTTON_REMOVE               1012
 #define IDC_BUTTON_OPTIONS              1013
-#define IDC_LIST2                       1014
+#define IDC_EDIT_OPTIONS_PNG_SAVER      1015
+#define IDC_BUTTON_ABOUT                1016
+#define IDC_EDIT1                       1017
+#define IDC_EDIT_OPTIONS_PNG_SAVER_PARAM 1018
+#define IDC_BUTTON1                     1019
+#define IDC_BUTTON_BROWSE_PNG_SAVER     1019
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        131
+#define _APS_NEXT_RESOURCE_VALUE        133
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1015
+#define _APS_NEXT_CONTROL_VALUE         1020
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -78,79 +78,17 @@ int Cpng2avi2pngApp::ExitInstance()
 	return CWinApp::ExitInstance();
 };
 
-#define REG_KEY "Software\\CorePNG\\png2avi2png\\"
-DWORD CorePNG_GetRegistryValue(const char *value_key, DWORD default_value)
-{	
-	DWORD ret_value = default_value;
-	HKEY key_handle = NULL;
-	DWORD lpType = NULL;
-	DWORD state = 0;
-
-	RegCreateKeyExA(HKEY_CURRENT_USER, REG_KEY, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &key_handle, &state);
-	//FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, 0, temp, 0, reg_key, 1024, NULL); 
-	if(state == 2)
-	{
-		DWORD size = sizeof(ret_value);
-		RegQueryValueEx(key_handle, value_key, 0, &lpType, (BYTE*)&ret_value, &size);
-	}
-	RegCloseKey(key_handle);
-	return ret_value;
-}
-
-void CorePNG_SetRegistryValue(const char *value_key, DWORD the_value)
+bool AfxDoIdle() 
 {
-	HKEY key_handle = NULL;
-	DWORD lpType = NULL;
-	DWORD state = 0;
-	SECURITY_ATTRIBUTES sa = {sizeof(sa), 0,1};
-
-	RegCreateKeyExA(HKEY_CURRENT_USER, REG_KEY, 0, "", 0, KEY_WRITE, &sa, &key_handle, &state);
-
-	DWORD size = sizeof(the_value);
-	RegSetValueEx(key_handle, value_key, 0, REG_DWORD, (CONST BYTE*)&the_value, size);
-	//char *err_key = new char[1024];
-	//FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, 0, temp, 0, err_key, 1024, NULL); 
-	RegCloseKey(key_handle);
-};
-
-const char *CorePNG_GetRegistryValueStr(const char *value_key, const char *default_value)
-{	
-	HKEY key_handle = NULL;
-	DWORD lpType = NULL;
-	DWORD state = 0;
-	static char key_text[1025];
-	DWORD size = 1024;
-
-	ZeroMemory(key_text, MAX_PATH);
-	RegCreateKeyExA(HKEY_CURRENT_USER, REG_KEY, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &key_handle, &state);
-	//FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, 0, temp, 0, reg_key, 1024, NULL); 		
-	if(state == REG_OPENED_EXISTING_KEY) {
-		RegQueryValueExA(key_handle, value_key, 0, &lpType, (BYTE*)key_text, &size);	
-	} else if (state == REG_CREATED_NEW_KEY) {
-		if (default_value != NULL)
-			lstrcpyA(key_text, default_value);
-		else
-			lstrcpyA(key_text, "");
+	MSG msg;
+	while (::PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) {
+		if (!AfxGetThread()->PumpMessage())
+			return false;
 	}
+	LONG lIdle = 0;
+	while (AfxGetApp()->OnIdle(lIdle++)) { 
+		Sleep(10); 
+	};
 
-	RegCloseKey(key_handle);
-	return key_text;
-}
-
-void CorePNG_SetRegistryValueStr(const char *value_key, const char *the_value)
-{
-	HKEY key_handle = NULL;
-	DWORD lpType = NULL;
-	DWORD state = 0;
-	SECURITY_ATTRIBUTES sa = {sizeof(sa), 0,1};
-
-	RegCreateKeyExA(HKEY_CURRENT_USER, REG_KEY, 0, NULL, 0, KEY_WRITE, &sa, &key_handle, &state);
-
-	DWORD size = lstrlenA(the_value)+1;
-	RegSetValueExA(key_handle, value_key, 0, REG_SZ, (CONST BYTE*)the_value, size);
-	
-	//char err_key[1024];
-	//FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, 0, GetLastError(), 0, err_key, 1024, NULL); 
-
-	RegCloseKey(key_handle);
+	return true;
 };

@@ -16,7 +16,7 @@
 			IntermediateDirectory="Debug"
 			ConfigurationType="1"
 			UseOfMFC="2"
-			CharacterSet="2">
+			CharacterSet="1">
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
@@ -70,7 +70,7 @@
 			IntermediateDirectory="Release"
 			ConfigurationType="1"
 			UseOfMFC="1"
-			CharacterSet="2">
+			CharacterSet="1">
 			<Tool
 				Name="VCCLCompilerTool"
 				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG"
@@ -86,7 +86,7 @@
 				Name="VCCustomBuildTool"/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="vfw32.lib"
+				AdditionalDependencies="vfw32.lib Unicows.lib"
 				LinkIncremental="1"
 				GenerateDebugInformation="TRUE"
 				GenerateMapFile="TRUE"
@@ -129,7 +129,7 @@
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
 			UseOfMFC="2"
-			CharacterSet="2">
+			CharacterSet="1">
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="1"
@@ -146,7 +146,7 @@
 				Name="VCCustomBuildTool"/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="vfw32.lib"
+				AdditionalDependencies="vfw32.lib Unicows.lib"
 				LinkIncremental="1"
 				GenerateDebugInformation="TRUE"
 				GenerateMapFile="TRUE"
@@ -198,6 +198,9 @@
 				RelativePath=".\png2avi2pngDlg.cpp">
 			</File>
 			<File
+				RelativePath=".\png2avi2pngOptionsDlg.cpp">
+			</File>
+			<File
 				RelativePath=".\stdafx.cpp">
 				<FileConfiguration
 					Name="Debug|Win32">
@@ -228,6 +231,9 @@
 			</File>
 			<File
 				RelativePath=".\png2avi2pngDlg.h">
+			</File>
+			<File
+				RelativePath=".\png2avi2pngOptionsDlg.h">
 			</File>
 			<File
 				RelativePath=".\Resource.h">

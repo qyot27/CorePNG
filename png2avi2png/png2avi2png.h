@@ -31,7 +31,5 @@ public:
 
 extern Cpng2avi2pngApp theApp;
 
-DWORD CorePNG_GetRegistryValue(const char *value_key, DWORD default_value);
-void CorePNG_SetRegistryValue(const char *value_key, DWORD the_value);
-const char *CorePNG_GetRegistryValueStr(const char *value_key, const char *default_value = NULL);
-void CorePNG_SetRegistryValueStr(const char *value_key, const char *the_value);
+/// Returns false when you need to exit
+bool AfxDoIdle();

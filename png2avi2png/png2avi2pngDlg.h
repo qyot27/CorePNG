@@ -16,6 +16,7 @@ class Cpng2avi2pngDlg : public CDialog
 // Construction
 public:
 	Cpng2avi2pngDlg(CWnd* pParent = NULL);	// standard constructor
+	virtual ~Cpng2avi2pngDlg();
 
 // Dialog Data
 	enum { IDD = IDD_PNG2AVI2PNG_DIALOG };
@@ -59,6 +60,14 @@ public:
 	afx_msg void OnBnClickedButtonOptions();
 protected:
 	CString m_OutputFilename;
+	CString m_pngSaverProgram;
+	CString m_pngSaverProgramParam;
+public:
+	afx_msg void OnBnRightclickButtonAdd();
+	afx_msg void OnBnClickedRadioAvi2png();
+	afx_msg void OnBnClickedRadioPng2avi();
+	afx_msg void OnBnClickedRadioAvi2avi();
+	afx_msg void OnBnClickedButtonAbout();
 };
 
 class CAVI2PNGProcessing {
@@ -76,6 +85,7 @@ public:
 	};
 	~CAVI2PNGProcessing() {
 		m_parent->SetDlgItemText(IDC_STATIC_PROGRESS, _T("Done."));
+		m_parent->m_ProgressCtrl.SetPos(100);
 		m_parent->m_ButtonStart.SetWindowText(_T("Start"));	
 	};
 };

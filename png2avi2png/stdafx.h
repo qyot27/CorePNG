@@ -39,6 +39,7 @@
 #include <afxcmn.h>			// MFC support for Windows Common Controls
 
 #endif // _AFX_NO_AFXCMN_SUPPORT
+#include <afxdhtml.h>
 
 #define MAKE_FOURCC(x) mmioFOURCC(x[0], x[1], x[2], x[3])
 #include <mmsystem.h>

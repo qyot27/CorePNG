@@ -5,6 +5,7 @@
 #include "png2avi2png.h"
 #include "png2avi2pngDlg.h"
 #include ".\png2avi2pngdlg.h"
+#include "png2avi2pngOptionsDlg.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -51,6 +52,14 @@ Cpng2avi2pngDlg::Cpng2avi2pngDlg(CWnd* pParent /*=NULL*/)
 	, m_OutputFilename(_T(""))
 {
 	
+	m_pngSaverProgram = AfxGetApp()->GetProfileString(_T(""), _T("PNG Saver Program"), _T("pngcrush.exe"));
+	m_pngSaverProgramParam = AfxGetApp()->GetProfileString(_T(""), _T("PNG Saver Program Param"), _T("%1 %2"));
+}
+
+Cpng2avi2pngDlg::~Cpng2avi2pngDlg()
+{
+	AfxGetApp()->WriteProfileString(_T(""), _T("PNG Saver Program"), m_pngSaverProgram);
+	AfxGetApp()->WriteProfileString(_T(""), _T("PNG Saver Program Param"), m_pngSaverProgramParam);
 }
 
 void Cpng2avi2pngDlg::DoDataExchange(CDataExchange* pDX)
@@ -74,6 +83,11 @@ BEGIN_MESSAGE_MAP(Cpng2avi2pngDlg, CDialog)
 	ON_BN_CLICKED(IDC_BUTTON_ADD, OnBnClickedButtonAdd)
 	ON_BN_CLICKED(IDC_BUTTON_REMOVE, OnBnClickedButtonRemove)
 	ON_BN_CLICKED(IDC_BUTTON_OPTIONS, OnBnClickedButtonOptions)
+	ON_CONTROL(WM_RBUTTONUP, IDC_BUTTON_ADD, OnBnRightclickButtonAdd)
+	ON_BN_CLICKED(IDC_RADIO_AVI2PNG, OnBnClickedRadioAvi2png)	
+	ON_BN_CLICKED(IDC_RADIO_PNG2AVI, OnBnClickedRadioPng2avi)
+	ON_BN_CLICKED(IDC_RADIO_AVI2AVI, OnBnClickedRadioAvi2avi)
+	ON_BN_CLICKED(IDC_BUTTON_ABOUT, OnBnClickedButtonAbout)
 END_MESSAGE_MAP()
 
 
@@ -175,7 +189,13 @@ void Cpng2avi2pngDlg::OnEnChangeEditOutputFile()
 void Cpng2avi2pngDlg::OnBnClickedButtonOutputBrowse()
 {
 	// TODO: Add your control notification handler code here
-	CFileDialog input(FALSE);
+	CString fileFilter;
+	if (IsDlgButtonChecked(IDC_RADIO_PNG2AVI) || IsDlgButtonChecked(IDC_RADIO_AVI2AVI)) {
+		fileFilter = _T("AVI Files (*.avi)|*.avi|All Files (*.*)|*.*||\0");
+	} else {
+		fileFilter = _T("PNG Files (*.png)|*.png|All Files (*.*)|*.*||\0");
+	}
+	CFileDialog input(FALSE, 0, m_OutputFilename, OFN_HIDEREADONLY|OFN_OVERWRITEPROMPT, fileFilter);
 	if (input.DoModal() == IDOK) {
 		m_OutputFilename = input.GetPathName();
 		SetDlgItemText(IDC_EDIT_OUTPUT_FILE, m_OutputFilename);
@@ -186,15 +206,31 @@ void Cpng2avi2pngDlg::OnBnClickedButtonOutputBrowse()
 void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 {
 	// TODO: Add your control notification handler code here
+	bool bExit = false;
 	HRESULT ret;		
 	CString buttonTxt;
 	m_ButtonStart.GetWindowText(buttonTxt);
 	if (buttonTxt == _T("Start")) {
+		if (m_InputList.GetCount() == 0) {
+			MessageBox(_T("No input files."));
+			return;
+		}
 		CAVI2PNGProcessing busy(this);
+		CString statusStr;
+		CDialog *statusDlg = new CDialog;
+		statusDlg->Create(IDD_DIALOG1, this);
+		statusStr = _T("PNG2AVI2PNG by Jory Stone\r\n")
+								_T("Compile: ") _T(__TIME__) _T(" ") _T(__DATE__) 
+								_T("\r\n\r\n");
+		statusDlg->SetDlgItemText(IDC_EDIT1, statusStr);
 								
-		if (IsDlgButtonChecked(IDC_RADIO_AVI2PNG) || IsDlgButtonChecked(IDC_RADIO_AVI2AVI)) {
+		if (IsDlgButtonChecked(IDC_RADIO_AVI2PNG)) {			
 			CString inputFilename;
 			m_InputList.GetText(0, inputFilename);
+
+			statusStr.AppendFormat(_T("Opening '%s' for AVI input\r\n"), inputFilename);
+			statusDlg->SetDlgItemText(IDC_EDIT1, statusStr);
+
 			ret = AVIFileOpen(&m_AVIFile, inputFilename, OF_SHARE_DENY_WRITE|OF_READ, 0L);
 			if (ret != AVIERR_OK) {
 				CString err;
@@ -202,7 +238,7 @@ void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 				MessageBox(err);
 				return;
 			}
-
+			
 			BITMAPINFO *bmh = NULL;
 			LONG currentAVIStream = 0;
 			bool bMoreStreams = true;
@@ -237,7 +273,7 @@ void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 
 					ret = AVIStreamReadFormat(m_AVIStream, 0, bmh, &lSize);
 					if (ret != AVIERR_OK) {
-						//wxLogError(_T("AVIStreamReadFormat failed!"));
+						MessageBox(_T("AVIStreamReadFormat failed!"));
 						return;
 					}
 					break;
@@ -247,13 +283,15 @@ void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 			if (bmh != NULL) {
 				// Found a video stream
 				if (bmh->bmiHeader.biCompression == MAKE_FOURCC("PNG1")) {
-					CArray<CByteArray, CByteArray&> myList;
 					// w00t it's a PNG avi !!!
 					CByteArray frameBuffer;
 					LONG frameBufferSize = 0;
 					LONG frameSample = 0;
 					LONG frameLength = AVIStreamLength(m_AVIStream);
 					
+					statusStr.AppendFormat(_T("AVI: CorePNG %ix%i %.2ffps %i frames\r\n"), bmh->bmiHeader.biWidth, bmh->bmiHeader.biHeight, (float)m_AVIStreamInfo.dwRate / (float)m_AVIStreamInfo.dwScale, frameLength);
+					statusDlg->SetDlgItemText(IDC_EDIT1, statusStr);
+
 					CString outputFilenameFormatStr = _T("-%0");			
 					// Calc the num of zeros needed
 					int zeroCount = 1;
@@ -266,33 +304,25 @@ void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 					outputFilenameFormatStr += _T("i-%s-%s.png");
 
 					LONG samplesRead = 0;			
+					
 					while (ret == AVIERR_OK) {				
 						ret = AVIStreamRead(m_AVIStream, frameSample, 1, frameBuffer.GetData(), frameBuffer.GetSize(), &frameBufferSize, &samplesRead);
 						if (frameBuffer.GetSize() < frameBufferSize) {
 							//wxLogDebug(_T("\nFrame Buffer was too small for AVIStreamRead.\n"));
 							frameBuffer.SetSize(frameBufferSize, frameBufferSize+1);					
 							ret = AVIStreamRead(m_AVIStream, frameSample, AVISTREAMREAD_CONVENIENT, frameBuffer.GetData(), frameBuffer.GetSize(), &frameBufferSize, &samplesRead);
-						}				
-						if (ret != AVIERR_OK) {
-							MessageBox(_T("AVIStreamRead returned error."));
-							break;
-						}				
+						}											
 
 						if (frameBufferSize > 0) {							
-							if (IsDlgButtonChecked(IDC_RADIO_AVI2PNG)) {
-								BYTE *frameData = frameBuffer.GetData();
-								LONG frameDataSize = frameBufferSize;
-								PNGParser parser(CMemFile(frameData, frameDataSize));
-								CString outputName;		
-								outputName.Format(outputFilenameFormatStr, frameSample, AVIStreamIsKeyFrame(m_AVIStream, frameSample) ? _T("Key") : _T("Delta"), _T("RGB"));
-								outputName = m_OutputFilename + outputName;
+							BYTE *frameData = frameBuffer.GetData();
+							LONG frameDataSize = frameBufferSize;
+							PNGParser parser(CMemFile(frameData, frameDataSize));
+							CString outputName;		
+							outputName.Format(outputFilenameFormatStr, frameSample, AVIStreamIsKeyFrame(m_AVIStream, frameSample) ? _T("Key") : _T("Delta"), _T("RGB"));
+							outputName = m_OutputFilename + outputName;
 
-								CFile output(outputName, CFile::modeCreate|CFile::modeWrite);
-								output.Write(frameData, frameDataSize);	
-							} else if (IsDlgButtonChecked(IDC_RADIO_AVI2AVI)) {
-
-								ret = AVIStreamWrite(m_AVIStream, frameSample, 1, frameBuffer.GetData(), frameBuffer.GetSize(), AVIStreamIsKeyFrame(m_AVIStream, frameSample) ? AVIIF_KEYFRAME : 0, &frameBufferSize, &samplesRead);
-							}
+							CFile output(outputName, CFile::modeCreate|CFile::modeWrite);
+							output.Write(frameData, frameDataSize);	
 						}
 						int currentPos = (100 / (float)frameLength) * (float)frameSample;
 						if (m_ProgressCtrl.GetPos() != currentPos) {
@@ -301,67 +331,259 @@ void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 							progressStr.Format(_T("Extracting... %02i%%"), currentPos);
 							SetDlgItemText(IDC_STATIC_PROGRESS, progressStr);
 						}
-						{
-							MSG msg;
-							while (::PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) 
-								if (!AfxGetThread()->PumpMessage()) 
-									return;
+						// Do Idle processing
+						if (!AfxDoIdle() || !m_ButtonStart.IsWindowEnabled()) {
+							m_ButtonStart.EnableWindow(TRUE);
 
-							// let MFC do its idle processing
-							LONG lIdle = 0;
-							while (AfxGetApp()->OnIdle(lIdle++));  
-							if (!m_ButtonStart.IsWindowEnabled()) {
-								m_ButtonStart.EnableWindow(TRUE);
-								break;
-							}
+							break;
 						}
 						frameSample++;
 					}
-				}
+				}								
+				free(bmh);
 			}		
-			/*CAviFile input;
-			input.Open(m_InputFilename);
-			BITMAPINFO *bmp = input.GetVideoFormat(0);
-			if (bmp == NULL)
+			
+			ret = AVIStreamClose(m_AVIStream);
+			if (ret != AVIERR_OK) {
+				MessageBox(_T("AVIStreamClose failed"));
 				return;
-			if (bmp->bmiHeader.biCompression == MAKE_FOURCC("PNG1")) {
-				long currentFrame = 0;
-				long currentFrameSize = 0;
-				BITMAPINFOHEADER *bmh = NULL;
-				BYTE *buffer = new BYTE[bmp->bmiHeader.biSizeImage];
+			}
+			ret = AVIFileClose(m_AVIFile);
+			if (ret != AVIERR_OK) {
+				MessageBox(_T("AVIFileClose failed"));
+				return;
+			}
+		} else if (IsDlgButtonChecked(IDC_RADIO_AVI2AVI)) {	
+			PAVIFILE outputAVIFile;
+			PAVISTREAM outputAVIStream;
 
-				input.StartVideoRetrieve(0);
-				input.GetVideoFrame(0, currentFrame, &bmh);
+			CString inputFilename;
+			m_InputList.GetText(0, inputFilename);
 
-				CString outputName;		
-				outputName.Format(_T("-%04i"), currentFrame);
-				outputName = m_OutputFilename + outputName;
+			statusStr.AppendFormat(_T("Opening '%s' for AVI input\r\n"), inputFilename);
+			statusDlg->SetDlgItemText(IDC_EDIT1, statusStr);
 
-				CFile output(outputName, CFile::modeCreate|CFile::modeWrite);
-				output.Write(buffer, currentFrameSize);
+			ret = AVIFileOpen(&m_AVIFile, inputFilename, OF_SHARE_DENY_WRITE|OF_READ, 0L);
+			if (ret != AVIERR_OK) {
+				CString err;
+				err.Format(_T("AVIFileOpen failed, unable to open: '%s'"), inputFilename);
+				MessageBox(err);
+				return;
+			}
+			
+			BITMAPINFO *bmh = NULL;
+			LONG currentAVIStream = 0;
+			bool bMoreStreams = true;
+			while (bMoreStreams) {		
+				// Go through the streams
+				ret = AVIFileGetStream(m_AVIFile, &m_AVIStream, 0, currentAVIStream);
+				if (ret != AVIERR_OK) {
+					if (currentAVIStream == 0) {
+						MessageBox(_T("AVIFileGetStream failed, unable to get any stream!"));
+						return;
+					}
+					break;
+				}		
+				ret = AVIStreamInfo(m_AVIStream, &m_AVIStreamInfo, sizeof(m_AVIStreamInfo));
+				if (ret != AVIERR_OK) {
+					MessageBox(_T("AVIStreamInfo failed, unable to get stream info!"));
+					return;
+				}
 
-				delete [] buffer;
-			}*/
-			/*m_AviFile = AVI_open_input_file(m_InputFilename, 1);
-			if (m_AviFile != NULL) {		
-				int keyframeFlag = 0;
-				long currentFrame = 0;
-				long currentFrameSize = 0;
-				BYTE *buffer = new BYTE[m_AviFile->bitmap_info_header->bi_size_image];
+				if (m_AVIStreamInfo.fccType == streamtypeVIDEO) {						
+					LONG lSize;
+					ret = AVIStreamReadFormat(m_AVIStream, AVIStreamStart(m_AVIStream), NULL, &lSize);
+					if (ret != AVIERR_OK) {
+						MessageBox(_T("AVIStreamReadFormat failed, unable to get stream format!"));
+						return;
+					}
+					if (bmh != NULL)
+						free(bmh);
 
-				//AVI_set_video_position(m_AviFile, currentFrame);
-				currentFrameSize = AVI_frame_size(m_AviFile, currentFrame);
-				currentFrame = AVI_read_frame(m_AviFile, (char *)buffer, &keyframeFlag);		
+					bmh = (BITMAPINFO *)malloc(lSize);
+					ZeroMemory(bmh, lSize);
 
-				CString outputName;		
-				outputName.Format(_T("-%04i"), currentFrame);
-				outputName = m_OutputFilename + outputName;
+					ret = AVIStreamReadFormat(m_AVIStream, 0, bmh, &lSize);
+					if (ret != AVIERR_OK) {
+						MessageBox(_T("AVIStreamReadFormat failed!"));
+						return;
+					}
+					break;
+				}
+				currentAVIStream++;
+			}
+			if (bmh != NULL) {
+				// Found a video stream
+				if (bmh->bmiHeader.biCompression == MAKE_FOURCC("PNG1")) {
+					// w00t it's a PNG avi !!!
+					CByteArray frameBuffer;
+					LONG frameBufferSize = 0;
+					LONG frameSample = 0;
+					LONG frameLength = AVIStreamLength(m_AVIStream);
+					
+					statusStr.AppendFormat(_T("AVI: CorePNG %ix%i %.2ffps %i frames\r\n"), bmh->bmiHeader.biWidth, bmh->bmiHeader.biHeight, (float)m_AVIStreamInfo.dwRate / (float)m_AVIStreamInfo.dwScale, frameLength);
+					statusDlg->SetDlgItemText(IDC_EDIT1, statusStr);
 
-				CFile output(outputName, CFile::modeCreate|CFile::modeWrite);
-				output.Write(buffer, currentFrameSize);
+					CString outputFilenameFormatStr = _T("-%0");			
+					// Calc the num of zeros needed
+					int zeroCount = 1;
+					LONG zeroLength = frameLength;
+					while (zeroLength >= 10) {
+						zeroLength = zeroLength / 10;
+						zeroCount++;
+					}
+					outputFilenameFormatStr.AppendFormat(_T("%i"), zeroCount);
+					outputFilenameFormatStr += _T("i-%s-%s.png");
 
-				delete [] buffer;
-			}*/
+					LONG samplesRead = 0;			
+					
+					// Stuff for PNG Saver/AVI2AVI mode
+					statusStr.AppendFormat(_T("Opening '%s' for AVI output\r\n"), m_OutputFilename);
+					statusDlg->SetDlgItemText(IDC_EDIT1, statusStr);
+
+					ret = AVIFileOpen(&outputAVIFile, m_OutputFilename, OF_CREATE|OF_WRITE|OF_SHARE_DENY_WRITE, 0L);
+					if (ret != AVIERR_OK) {
+						CString err;
+						err.Format(_T("AVIFileOpen failed, unable to create: '%s'"), m_OutputFilename);
+						MessageBox(err);
+						return;
+					}
+					ret = AVIFileCreateStream(outputAVIFile, &outputAVIStream, &m_AVIStreamInfo);
+					if (ret != AVIERR_OK) {
+						MessageBox(_T("AVIFileCreateStream failed for output AVI"));
+						return;
+					}
+					ret = AVIStreamSetFormat(outputAVIStream, 0, bmh, bmh->bmiHeader.biSize);
+					if (ret != AVIERR_OK) {
+						MessageBox(_T("AVIStreamSetFormat failed for output AVI"));
+						return;
+					}
+
+					// Setup the Shell Execute and related things
+					CString EnvStr;
+					EnvStr.GetEnvironmentVariable(_T("TEMP"));
+					if (EnvStr.GetLength() == 0) {
+						EnvStr = _T("C:\\");
+					}
+					CString outputName_orig = EnvStr + _T("_temp_orig.png");	
+					CString outputName_out = EnvStr + _T("_temp_out.png");
+					CString shellCmd = m_pngSaverProgram;
+					CString shellCmdParams = m_pngSaverProgramParam;
+					shellCmdParams.Replace(_T("%1"), outputName_orig);		
+					shellCmdParams.Replace(_T("%2"), outputName_out);		
+
+					SHELLEXECUTEINFO shellExec;
+					ZeroMemory(&shellExec, sizeof(SHELLEXECUTEINFO));
+					shellExec.cbSize = sizeof(SHELLEXECUTEINFO);
+					shellExec.hwnd = this->m_hWnd;
+					shellExec.fMask = SEE_MASK_NOCLOSEPROCESS;//|SEE_MASK_NO_CONSOLE;
+					shellExec.lpFile = shellCmd;
+					shellExec.lpParameters = shellCmdParams;
+					shellExec.nShow = 0;//SW_SHOWNORMAL;
+
+					while (ret == AVIERR_OK) {				
+						ret = AVIStreamRead(m_AVIStream, frameSample, 1, frameBuffer.GetData(), frameBuffer.GetSize(), &frameBufferSize, &samplesRead);
+						if (frameBuffer.GetSize() < frameBufferSize) {
+							//wxLogDebug(_T("\nFrame Buffer was too small for AVIStreamRead.\n"));
+							frameBuffer.SetSize(frameBufferSize, frameBufferSize+1);					
+							ret = AVIStreamRead(m_AVIStream, frameSample, AVISTREAMREAD_CONVENIENT, frameBuffer.GetData(), frameBuffer.GetSize(), &frameBufferSize, &samplesRead);
+						}											
+
+						if (frameBufferSize > 0) {							
+							{
+							CFile outputFile(outputName_orig, CFile::modeCreate|CFile::modeWrite);
+							outputFile.Write(frameBuffer.GetData(), frameBufferSize);	
+							outputFile.Close();
+							}
+													
+							ret = ShellExecuteEx(&shellExec);
+							if (!ret) {
+								MessageBox(_T("ShellExecuteEx failed to launch PNG-Saver program"));
+								break;
+							}
+							// Now we wait for the process to complete
+							DWORD prio = WaitForSingleObject(shellExec.hProcess, 250);								
+							while (prio != WAIT_FAILED && prio != WAIT_OBJECT_0) {
+								//prio = WaitForInputIdle(shellExec.hProcess, 1000);
+								//prio = GetThreadPriority(shellExec.hProcess);
+								prio = WaitForSingleObject(shellExec.hProcess, 250);
+								Sleep(50);
+								if (!AfxDoIdle() || !m_ButtonStart.IsWindowEnabled()) {
+									m_ButtonStart.EnableWindow(TRUE);
+
+									statusStr += _T("Aborted!\r\n");
+									statusDlg->SetDlgItemText(IDC_EDIT1, statusStr);
+									statusDlg->SendDlgItemMessage(IDC_EDIT1, EM_SETSEL, statusStr.GetLength(), statusStr.GetLength());
+									bExit = true;
+									break;
+								}
+							}
+							if (bExit)
+								break;
+#ifdef _DEBUG
+							TCHAR err_key[1025];
+							FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, 0, GetLastError(), 0, err_key, 1024, NULL); 
+#endif
+							//statusStr.AppendFormat(_T("Opening '%s' for AVI output\r\n"), m_OutputFilename);
+							//statusDlg->SetDlgItemText(IDC_EDIT1, statusStr);
+
+							CFile inputFile(outputName_out, CFile::modeRead);
+							if (inputFile.GetLength() < frameBufferSize > 0) {
+								statusStr.AppendFormat(_T("Frame %i was compressed to %i bytes from %i bytes.\r\n"), frameSample, (long)inputFile.GetLength(), frameBufferSize);
+								statusDlg->SetDlgItemText(IDC_EDIT1, statusStr);
+								statusDlg->SendDlgItemMessage(IDC_EDIT1, EM_SETSEL, statusStr.GetLength(), statusStr.GetLength());
+								statusDlg->SendDlgItemMessage(IDC_EDIT1, EM_SCROLLCARET, 0, 0);								
+
+								frameBufferSize = inputFile.GetLength();
+								inputFile.Read(frameBuffer.GetData(), frameBufferSize);	
+							}								
+							inputFile.Close();
+
+							ret = AVIStreamWrite(outputAVIStream, frameSample, 1, frameBuffer.GetData(), frameBuffer.GetSize(), AVIStreamIsKeyFrame(m_AVIStream, frameSample) ? AVIIF_KEYFRAME : 0, &frameBufferSize, &samplesRead);
+						}
+
+						int currentPos = (100 / (float)frameLength) * (float)frameSample;
+						if (m_ProgressCtrl.GetPos() != currentPos) {
+							m_ProgressCtrl.SetPos(currentPos);
+							CString progressStr;
+							progressStr.Format(_T("Extracting... %02i%%"), currentPos);
+							SetDlgItemText(IDC_STATIC_PROGRESS, progressStr);
+						}
+						// Do Idle processing
+						if (!AfxDoIdle() || !m_ButtonStart.IsWindowEnabled()) {
+							m_ButtonStart.EnableWindow(TRUE);
+
+							break;
+						}
+						frameSample++;
+					}
+				}								
+				free(bmh);
+			}		
+
+			if (!m_ButtonStart.IsWindowEnabled())
+				m_ButtonStart.EnableWindow(TRUE);
+
+			ret = AVIStreamClose(outputAVIStream);
+			if (ret != AVIERR_OK) {
+				MessageBox(_T("AVIStreamClose failed"));
+				return;
+			}
+			ret = AVIFileClose(outputAVIFile);
+			if (ret != AVIERR_OK) {
+				MessageBox(_T("AVIFileClose failed"));
+				return;
+			}			
+			ret = AVIStreamClose(m_AVIStream);
+			if (ret != AVIERR_OK) {
+				MessageBox(_T("AVIStreamClose failed"));
+				return;
+			}
+			ret = AVIFileClose(m_AVIFile);
+			if (ret != AVIERR_OK) {
+				MessageBox(_T("AVIFileClose failed"));
+				return;
+			}
 		} else if (IsDlgButtonChecked(IDC_RADIO_PNG2AVI)) {
 			PAVIFILE outputAVIFile;
 			PAVISTREAM outputAVIStream;
@@ -369,6 +591,10 @@ void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 
 			CString inputPNGFilename;
 			m_InputList.GetText(0, inputPNGFilename);
+			
+			statusStr.AppendFormat(_T("Opening PNG '%s' for scaning\r\n"), inputPNGFilename);
+			statusDlg->SetDlgItemText(IDC_EDIT1, statusStr);
+
 			CFile currentPNGFile(inputPNGFilename, CFile::modeRead);
 			PNGParser currentPNG(currentPNGFile);
 			if (currentPNG.size == 0) {
@@ -416,9 +642,14 @@ void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 			}
 
 			// Now add the PNG frames
+			PNGParser firstPNG = currentPNG;
 			CByteArray frameBuffer;
 			LONG lSamplesWritten = 0;
 			LONG lBytesWritten = 0;
+						
+			statusStr.AppendFormat(_T("PNG: %ix%i %i images\r\n"), firstPNG.width, firstPNG.height, m_InputList.GetCount());
+			statusDlg->SetDlgItemText(IDC_EDIT1, statusStr);
+
 			for (int f = 0; f < m_InputList.GetCount(); f++) {
 				m_InputList.GetText(f, inputPNGFilename);
 				currentPNGFile.Close();
@@ -427,6 +658,11 @@ void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 				if (currentPNG.size == 0) {
 					CString err;
 					err.Format(_T("PNG Parsing failed for: '%s'"), inputPNGFilename);
+					MessageBox(err);
+				}
+				if (currentPNG.height != firstPNG.height || currentPNG.width != firstPNG.width) {
+					CString err;
+					err.Format(_T("PNG size mismatch for: '%s'\nThe input PNG's must have the same width and height."), inputPNGFilename);
 					MessageBox(err);
 				}
 				currentPNGFile.SeekToBegin();
@@ -442,6 +678,20 @@ void Cpng2avi2pngDlg::OnBnClickedButtonStart()
 				ret = AVIStreamWrite(outputAVIStream, f, 1, frameBuffer.GetData(), currentPNG.size, keyFrame, &lSamplesWritten, &lBytesWritten);
 				if (ret != AVIERR_OK) {
 					MessageBox(_T("AVIStreamWrite failed"));
+					break;
+				}
+				int currentPos = (100 / (float)m_InputList.GetCount()) * (float)f;
+				if (m_ProgressCtrl.GetPos() != currentPos) {
+					m_ProgressCtrl.SetPos(currentPos);
+					CString progressStr;
+					progressStr.Format(_T("Muxing... %02i%%"), currentPos);
+					SetDlgItemText(IDC_STATIC_PROGRESS, progressStr);
+				}
+				// Do Idle processing
+				if (!AfxDoIdle()) {
+					if (!m_ButtonStart.IsWindowEnabled())
+						m_ButtonStart.EnableWindow(TRUE);
+
 					break;
 				}
 			}
@@ -523,6 +773,12 @@ void Cpng2avi2pngDlg::OnBnClickedButtonRemove()
 void Cpng2avi2pngDlg::OnBnClickedButtonOptions()
 {
 	// TODO: Add your control notification handler code here
+	Cpng2avi2pngOptionsDlg options(this);
+
+	options.SetPngSaverProgram(m_pngSaverProgram, m_pngSaverProgramParam);
+	if (options.DoModal() == IDOK) {
+		m_pngSaverProgram = options.pngSaverProgram;
+	}
 }
 
 void *SwapBytes(void* Addr, const int Nb) {
@@ -586,3 +842,30 @@ PNGParser::PNGParser(CFile &input)
 		size = input.GetPosition();
 	}
 };
+
+void Cpng2avi2pngDlg::OnBnRightclickButtonAdd()
+{
+	// TODO: Add your control notification handler code here	
+}
+
+void Cpng2avi2pngDlg::OnBnClickedRadioAvi2png()
+{
+	// TODO: Add your control notification handler code here
+}
+
+void Cpng2avi2pngDlg::OnBnClickedRadioPng2avi()
+{
+	// TODO: Add your control notification handler code here
+}
+
+void Cpng2avi2pngDlg::OnBnClickedRadioAvi2avi()
+{
+	// TODO: Add your control notification handler code here
+}
+
+void Cpng2avi2pngDlg::OnBnClickedButtonAbout()
+{
+	// TODO: Add your control notification handler code here
+	CAboutDlg about;
+	about.DoModal();
+}
