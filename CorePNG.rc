@@ -54,8 +54,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,1,1,1
- PRODUCTVERSION 0,1,1,1
+ FILEVERSION 0,2,1,1
+ PRODUCTVERSION 0,2,1,1
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -70,17 +70,17 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "Comments", "http://corecodec.org/projects/coreflac/\0"
+            VALUE "Comments", "http://corecodec.org/projects/vfre/\0"
             VALUE "CompanyName", "\0"
-            VALUE "FileDescription", "CoreFLACEncoder DirectShow Filter\0"
-            VALUE "FileVersion", "0, 1, 1, 1\0"
-            VALUE "InternalName", "CoreFLACEncoder\0"
+            VALUE "FileDescription", "CorePNG DirectShow Filter\0"
+            VALUE "FileVersion", "0, 2, 1, 1\0"
+            VALUE "InternalName", "CorePNG\0"
             VALUE "LegalCopyright", "Copyright © 2003 Jory Stone\0"
             VALUE "LegalTrademarks", "\0"
-            VALUE "OriginalFilename", "CoreFLACEncoder.rc\0"
+            VALUE "OriginalFilename", "CorePNG.rc\0"
             VALUE "PrivateBuild", "\0"
-            VALUE "ProductName", "CoreFLACEncoder DirectShow Filter\0"
-            VALUE "ProductVersion", "0, 1, 1, 1\0"
+            VALUE "ProductName", "CorePNG DirectShow Filter\0"
+            VALUE "ProductVersion", "0, 2, 1, 1\0"
             VALUE "SpecialBuild", "\0"
         END
     END

@@ -142,6 +142,54 @@ BOOL APIENTRY DllMain(HANDLE hModule,
 	return DllEntryPoint((HINSTANCE)(hModule), dwReason, lpReserved);
 }
 
+/// Make destination an identical copy of source
+HRESULT DShowIMediaSampleCopy(IMediaSample *pSource, IMediaSample *pDest, bool bCopyData)
+{
+	CheckPointer(pSource, E_POINTER);
+	CheckPointer(pDest, E_POINTER);
+
+	if (bCopyData) {
+		// Copy the sample data
+		BYTE *pSourceBuffer, *pDestBuffer;
+		long lSourceSize = pSource->GetActualDataLength();
+
+	#ifdef DEBUG    
+		long lDestSize = pDest->GetSize();
+		ASSERT(lDestSize >= lSourceSize);
+	#endif
+
+		pSource->GetPointer(&pSourceBuffer);
+		pDest->GetPointer(&pDestBuffer);
+
+		CopyMemory((PVOID) pDestBuffer,(PVOID) pSourceBuffer, lSourceSize);
+	}
+
+	// Copy the sample times
+	REFERENCE_TIME TimeStart, TimeEnd;
+	if(NOERROR == pSource->GetTime(&TimeStart, &TimeEnd))
+	{
+		pDest->SetTime(&TimeStart, &TimeEnd);
+	}
+
+	LONGLONG MediaStart, MediaEnd;
+	if(pSource->GetMediaTime(&MediaStart,&MediaEnd) == NOERROR)
+	{
+		pDest->SetMediaTime(&MediaStart,&MediaEnd);
+	}
+
+	// Copy the media type
+	AM_MEDIA_TYPE *pMediaType;
+	pSource->GetMediaType(&pMediaType);
+	pDest->SetMediaType(pMediaType);
+	DeleteMediaType(pMediaType);
+
+	// Copy the actual data length
+	long lDataLength = pSource->GetActualDataLength();
+	pDest->SetActualDataLength(lDataLength);
+
+	return NOERROR;
+}
+
 CCorePNGEncoderFilter::CCorePNGEncoderFilter(LPUNKNOWN pUnk, HRESULT *pHr)
 	: CTransformFilter(g_stCorePNGEncoderName, pUnk, CLSID_CorePNGEncoder)
 {
@@ -265,19 +313,23 @@ HRESULT CCorePNGEncoderFilter::SetMediaType(PIN_DIRECTION direction, const CMedi
 }
 
 HRESULT CCorePNGEncoderFilter::Transform(IMediaSample *pIn, IMediaSample *pOut) {
-	Copy(pIn, pOut, false);
+	DShowIMediaSampleCopy(pIn, pOut, false);
 
 	LONG lActual = m_VideoHeader.bmiHeader.biSizeImage;//pIn->GetActualDataLength();
 
 	BYTE *pBuffer;
 	pIn->GetPointer(&pBuffer);	
 
+	// Check if this frame is the same as the last one
+	if (!memcmp(m_Image.GetBits(), pBuffer, lActual))
+		return S_FALSE;
+
 	CopyMemory(m_Image.GetBits(), pBuffer, lActual);
-	memfile.Seek(0, 0);	
+	memfile.Seek(0, 0);		
 	m_Image.Encode(&memfile, CXIMAGE_FORMAT_PNG);	
 	//m_Image.Draw(GetDC(NULL));
 
-	lActual = memfile.Size();	
+	lActual = memfile.Tell();	
 	BYTE *pOutBuffer;
 	pOut->GetPointer(&pOutBuffer);
 
@@ -289,58 +341,48 @@ HRESULT CCorePNGEncoderFilter::Transform(IMediaSample *pIn, IMediaSample *pOut) 
 	return S_OK;
 };
 
-/// Make destination an identical copy of source
-HRESULT CCorePNGEncoderFilter::Copy(IMediaSample *pSource, IMediaSample *pDest, bool bCopyData) const
-{
-	CheckPointer(pSource, E_POINTER);
-	CheckPointer(pDest, E_POINTER);
-
-	if (bCopyData) {
-		// Copy the sample data
-		BYTE *pSourceBuffer, *pDestBuffer;
-		long lSourceSize = pSource->GetActualDataLength();
-
-	#ifdef DEBUG    
-		long lDestSize = pDest->GetSize();
-		ASSERT(lDestSize >= lSourceSize);
-	#endif
-
-		pSource->GetPointer(&pSourceBuffer);
-		pDest->GetPointer(&pDestBuffer);
-
-		CopyMemory((PVOID) pDestBuffer,(PVOID) pSourceBuffer, lSourceSize);
-	}
-
-	// Copy the sample times
-	REFERENCE_TIME TimeStart, TimeEnd;
-	if(NOERROR == pSource->GetTime(&TimeStart, &TimeEnd))
-	{
-		pDest->SetTime(&TimeStart, &TimeEnd);
-	}
-
-	LONGLONG MediaStart, MediaEnd;
-	if(pSource->GetMediaTime(&MediaStart,&MediaEnd) == NOERROR)
-	{
-		pDest->SetMediaTime(&MediaStart,&MediaEnd);
-	}
-
-	// Copy the media type
-	AM_MEDIA_TYPE *pMediaType;
-	pSource->GetMediaType(&pMediaType);
-	pDest->SetMediaType(pMediaType);
-	DeleteMediaType(pMediaType);
-
-	// Copy the actual data length
-	long lDataLength = pSource->GetActualDataLength();
-	pDest->SetActualDataLength(lDataLength);
-
-	return NOERROR;
-}
-
 CUnknown *WINAPI CCorePNGEncoderFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT * phr)
 {
     return new CCorePNGEncoderFilter(pUnk, phr);
 }
+
+CCorePNGDecoderFilterPNGInputPin::CCorePNGDecoderFilterPNGInputPin(TCHAR *pObjectName, CTransformFilter *pTransformFilter, HRESULT * phr, LPCWSTR pName)
+    : CTransformInputPin(pObjectName, pTransformFilter, phr, pName)
+{
+    DbgLog((LOG_TRACE,2,TEXT("CCorePNGDecoderFilterPNGInputPin::CCorePNGDecoderFilterPNGInputPin")));
+}
+
+HRESULT CCorePNGDecoderFilterPNGInputPin::CheckMediaType(const CMediaType* pmt)
+{
+   // Check the input type
+	if (*pmt->Type() == MEDIATYPE_Video) {
+		// Ok it's audio...
+		// We need PNG
+		if (*pmt->Subtype() == MEDIASUBTYPE_PNG) {
+			// Yay \o/
+			if (*pmt->FormatType() == FORMAT_VideoInfo) {				
+				//memcpy(&m_VideoHeader, mtIn->Format(), sizeof(VIDEOINFOHEADER));
+				//m_Image.Create(m_VideoHeader.bmiHeader.biWidth, m_VideoHeader.bmiHeader.biHeight, 24);
+				return ((CCorePNGDecoderFilter *)m_pTransformFilter)->SetPNGHeader((VIDEOINFOHEADER *)pmt->Format());
+			}
+		}
+	}
+	return S_FALSE;	
+};
+
+STDMETHODIMP CCorePNGDecoderFilterPNGInputPin::Receive(IMediaSample *pSample)
+{
+  HRESULT hr;
+  //CAutoLock lck(&m_pTransformFilter->m_csReceive);
+  ASSERT(pSample);
+
+  // check all is well with the base class
+  hr = CBaseInputPin::Receive(pSample);
+  if (S_OK == hr) {
+      hr = ((CCorePNGDecoderFilter*)m_pTransformFilter)->GetPNGSample(pSample);
+  }
+	return hr;
+};
 
 CCorePNGDecoderFilter::CCorePNGDecoderFilter(LPUNKNOWN pUnk, HRESULT *pHr)
 	: CTransformFilter(g_stCorePNGDecoderName, pUnk, CLSID_CorePNGDecoder)
@@ -349,7 +391,69 @@ CCorePNGDecoderFilter::CCorePNGDecoderFilter(LPUNKNOWN pUnk, HRESULT *pHr)
 };
 
 CCorePNGDecoderFilter::~CCorePNGDecoderFilter() {
+	delete m_pInputPNGPin;
+};
 
+CBasePin *CCorePNGDecoderFilter::GetPin(int n)
+{
+	HRESULT hr = S_OK;
+
+	// Create an input pin if necessary
+
+	if (m_pInput == NULL) {
+
+		m_pInput = new CTransformInputPin(NAME("Transform input pin"),
+			this,              // Owner filter
+			&hr,               // Result code
+			L"XForm In");      // Pin name
+
+
+		//  Can't fail
+		ASSERT(SUCCEEDED(hr));
+		if (m_pInput == NULL) {
+			return NULL;
+		}
+
+		m_pInputPNGPin = (CCorePNGDecoderFilterPNGInputPin *)
+			new CCorePNGDecoderFilterPNGInputPin(NAME("PNG Subtitle input pin"),
+			this,            // Owner filter
+			&hr,             // Result code
+			L"PNG Subtitle Stream");   // Pin name
+		
+		//  Can't fail
+		ASSERT(SUCCEEDED(hr));
+		if (m_pInputPNGPin == NULL) {
+			return NULL;
+		}
+
+		m_pOutput = (CTransformOutputPin *)
+			new CTransformOutputPin(NAME("Transform output pin"),
+			this,            // Owner filter
+			&hr,             // Result code
+			L"XForm Out");   // Pin name
+
+		// Can't fail
+		ASSERT(SUCCEEDED(hr));
+		if (m_pOutput == NULL) {
+			delete m_pInput;
+			m_pInput = NULL;
+		}
+	}
+
+	// Return the appropriate pin
+
+	if (n == 0) {
+		return m_pInput;
+	} else
+		if (n == 1) {
+			return m_pInputPNGPin;
+		} else {
+			if (n == 2) {
+				return m_pOutput;
+			} else {
+				return NULL;
+			}
+		}
 };
 
 HRESULT CCorePNGDecoderFilter::CheckInputType(const CMediaType *mtIn) {
@@ -467,7 +571,7 @@ HRESULT CCorePNGDecoderFilter::SetMediaType(PIN_DIRECTION direction, const CMedi
 }
 
 HRESULT CCorePNGDecoderFilter::Transform(IMediaSample *pIn, IMediaSample *pOut) {
-	Copy(pIn, pOut, false);
+	DShowIMediaSampleCopy(pIn, pOut, false);
 
 	LONG lActual = pIn->GetActualDataLength();
 
@@ -478,7 +582,6 @@ HRESULT CCorePNGDecoderFilter::Transform(IMediaSample *pIn, IMediaSample *pOut) 
 	pOut->GetPointer(&pOutBuffer);	
 	m_Image.Decode(pBuffer, lActual, CXIMAGE_FORMAT_PNG);
 	//m_Image.Draw(GetDC(NULL));
-
 	CopyMemory(pOutBuffer, m_Image.GetBits(), m_VideoHeader.bmiHeader.biSizeImage);
 
 	pOut->SetActualDataLength(m_VideoHeader.bmiHeader.biSizeImage);
@@ -486,53 +589,50 @@ HRESULT CCorePNGDecoderFilter::Transform(IMediaSample *pIn, IMediaSample *pOut) 
 	return S_OK;
 };
 
-/// Make destination an identical copy of source
-HRESULT CCorePNGDecoderFilter::Copy(IMediaSample *pSource, IMediaSample *pDest, bool bCopyData) const
+HRESULT CCorePNGDecoderFilter::GetPNGSample(IMediaSample *pSample)
 {
-	CheckPointer(pSource, E_POINTER);
-	CheckPointer(pDest, E_POINTER);
+  /*  Check for other streams and pass them on */
+  AM_SAMPLE2_PROPERTIES * const pProps = m_pInput->SampleProps();
+  if (pProps->dwStreamId != AM_STREAM_MEDIA) {
+      return ((CCorePNGDecoderFilterOutputPin *)m_pOutput)->Receive(pSample);
+  }
+  HRESULT hr = S_OK;
+  ASSERT(pSample);
 
-	if (bCopyData) {
-		// Copy the sample data
-		BYTE *pSourceBuffer, *pDestBuffer;
-		long lSourceSize = pSource->GetActualDataLength();
+	// Decode the sample here
 
-	#ifdef DEBUG    
-		long lDestSize = pDest->GetSize();
-		ASSERT(lDestSize >= lSourceSize);
-	#endif
+	return S_OK;
+};
 
-		pSource->GetPointer(&pSourceBuffer);
-		pDest->GetPointer(&pDestBuffer);
+HRESULT CCorePNGDecoderFilter::AlphaBlend(RGBTRIPLE *targetBits)
+{
+	CxImage dummySource(m_Image);
+	RGBTRIPLE *sourcePNG = (RGBTRIPLE *)m_Image.GetBits();	
+	RGBTRIPLE *sourceImage = (RGBTRIPLE *)dummySource.GetBits();
 
-		CopyMemory((PVOID) pDestBuffer,(PVOID) pSourceBuffer, lSourceSize);
+	for (DWORD height = 0; height < m_Image.GetHeight(); height++) {
+		for (DWORD width = 0; width < m_Image.GetWidth(); width++) {
+			BYTE sourcePNGAlpha = m_Image.AlphaGet(width, height);
+				if (sourcePNGAlpha == 0) {
+					// Fully transparent
+					targetBits[(m_Image.GetWidth()*height)+width] = sourceImage[(m_Image.GetWidth()*height)+width];
+				} else if (sourcePNGAlpha == 255) {
+					// Fully solid
+					targetBits[(m_Image.GetWidth()*height)+width] = sourcePNG[(m_Image.GetWidth()*height)+width];
+				} else {
+					// We have a blend
+					RGBTRIPLE sourcePNGPixel = sourcePNG[(m_Image.GetWidth()*height)+width];
+					RGBTRIPLE sourceImagePixel = sourceImage[(m_Image.GetWidth()*height)+width];
+					RGBTRIPLE* targetBitsPixel = &targetBits[(m_Image.GetWidth()*height)+width];
+					
+					targetBits->rgbtBlue = sourceImagePixel.rgbtBlue * ((float)sourcePNGAlpha / 255) + sourcePNGPixel.rgbtBlue;
+					targetBits->rgbtGreen = sourceImagePixel.rgbtGreen * ((float)sourcePNGAlpha / 255) + sourcePNGPixel.rgbtGreen;
+					targetBits->rgbtRed = sourceImagePixel.rgbtRed * ((float)sourcePNGAlpha / 255) + sourcePNGPixel.rgbtRed;
+				}
+		}
 	}
-
-	// Copy the sample times
-	REFERENCE_TIME TimeStart, TimeEnd;
-	if(NOERROR == pSource->GetTime(&TimeStart, &TimeEnd))
-	{
-		pDest->SetTime(&TimeStart, &TimeEnd);
-	}
-
-	LONGLONG MediaStart, MediaEnd;
-	if(pSource->GetMediaTime(&MediaStart,&MediaEnd) == NOERROR)
-	{
-		pDest->SetMediaTime(&MediaStart,&MediaEnd);
-	}
-
-	// Copy the media type
-	AM_MEDIA_TYPE *pMediaType;
-	pSource->GetMediaType(&pMediaType);
-	pDest->SetMediaType(pMediaType);
-	DeleteMediaType(pMediaType);
-
-	// Copy the actual data length
-	long lDataLength = pSource->GetActualDataLength();
-	pDest->SetActualDataLength(lDataLength);
-
 	return NOERROR;
-}
+};
 
 CUnknown *WINAPI CCorePNGDecoderFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT * phr)
 {

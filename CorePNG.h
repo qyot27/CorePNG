@@ -43,6 +43,8 @@
 
 #define ODS(x) OutputDebugString(x)
 
+HRESULT DShowIMediaSampleCopy(IMediaSample *pSource, IMediaSample *pDest, bool bCopyData);
+
 class CCorePNGEncoderFilter : public CTransformFilter {
 public:	
 	CCorePNGEncoderFilter(LPUNKNOWN pUnk, HRESULT *pHr);
@@ -57,13 +59,26 @@ public:
 
 	static CUnknown * WINAPI CreateInstance(LPUNKNOWN pUnk, HRESULT *pHr);
 
-protected:		
-	HRESULT Copy(IMediaSample *pSource, IMediaSample *pDest, bool bCopyData) const;
-
+protected:			
 	CxImage m_Image;
 	CxMemFile memfile;	
 	VIDEOINFOHEADER m_VideoHeader;
 	long m_BufferSize;
+};
+
+class CCorePNGDecoderFilterPNGInputPin : public CTransformInputPin {
+public:
+	CCorePNGDecoderFilterPNGInputPin(TCHAR *pObjectName, CTransformFilter *pTransformFilter, HRESULT * phr, LPCWSTR pName);
+	virtual HRESULT CheckMediaType(const CMediaType* pmt);
+	virtual STDMETHODIMP Receive(IMediaSample *pSample);
+
+protected:
+	CxImage m_LastImage;
+};
+
+class CCorePNGDecoderFilterOutputPin : public CTransformOutputPin {
+public:
+	HRESULT Receive(IMediaSample *pSampleToPass) { return this->m_pInputPin->Receive(pSampleToPass); };
 };
 
 class CCorePNGDecoderFilter : public CTransformFilter {
@@ -71,20 +86,25 @@ public:
 	CCorePNGDecoderFilter(LPUNKNOWN pUnk, HRESULT *pHr);
 	~CCorePNGDecoderFilter();
 	
+	virtual int GetPinCount() { return 3; };
+	virtual CBasePin *GetPin(int n);
 	virtual HRESULT CheckInputType(const CMediaType *mtIn);
 	virtual HRESULT CheckTransform(const CMediaType *mtIn, const CMediaType *mtOut);
 	virtual HRESULT DecideBufferSize(IMemAllocator *pAlloc, ALLOCATOR_PROPERTIES *ppropInputRequest);
 	virtual HRESULT GetMediaType(int iPosition, CMediaType *pMediaType);
 	virtual HRESULT SetMediaType(PIN_DIRECTION direction, const CMediaType *pmt);
 	virtual HRESULT Transform(IMediaSample *pIn, IMediaSample *pOut);	
+	HRESULT GetPNGSample(IMediaSample *pSample);
+	HRESULT SetPNGHeader(VIDEOINFOHEADER *pVideoHeader) { memcpy(&m_PNGVideoHeader, pVideoHeader, sizeof(VIDEOINFOHEADER)); return S_OK; };
+	static CUnknown * WINAPI CreateInstance(LPUNKNOWN pUnk, HRESULT *pHr);	
 
-	static CUnknown * WINAPI CreateInstance(LPUNKNOWN pUnk, HRESULT *pHr);
-
-protected:		
-	HRESULT Copy(IMediaSample *pSource, IMediaSample *pDest, bool bCopyData) const;
-
+protected:	
+	HRESULT AlphaBlend(RGBTRIPLE *targetBits);
+	
+	CCorePNGDecoderFilterPNGInputPin *m_pInputPNGPin;
 	CxImage m_Image;
 	VIDEOINFOHEADER m_VideoHeader;
+	VIDEOINFOHEADER m_PNGVideoHeader;
 	long m_BufferSize;
 };
 

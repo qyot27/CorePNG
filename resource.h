@@ -1,6 +1,6 @@
 //{{NO_DEPENDENCIES}}
 // Microsoft Developer Studio generated include file.
-// Used by CoreFLACEncoder.rc
+// Used by CorePNG.rc
 //
 
 // Next default values for new objects
