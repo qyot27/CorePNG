@@ -31,8 +31,24 @@
 #include <sstream>
 #include <exception>
 // CxImage includes
+#undef _USRDLL 
+// we don't want to export the CxImage API
 #include "ximage.h"
 #include "ximapng.h"
+#define _USRDLL
+
+// Colorspace conversion declares/includes
+#include "convert_yv12.h"
+extern "C" {
+//Declare for assembly YUV2->RGB32 conversion
+void _stdcall YUV422toRGB_MMX(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch);
+//I don't use these, but it's nice to have the declares
+void _stdcall RGBtoYCrCb_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch); 
+void _stdcall RGBtoYUV422_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch); 
+};
+
+#include "quadrantscan.h"
+
 // .rc Resource include
 #include "resource.h"
 
@@ -122,14 +138,6 @@
 #define PNGFrameType_RGB24 0x01
 #define PNGFrameType_YUY2  0x02
 #define PNGFrameType_YV12  0x03
-
-extern "C" {
-//Declare for assembly YUV2->RGB32 conversion
-void _stdcall YUV422toRGB_MMX(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch);
-//I don't use these, but it's nice to have the declares
-void _stdcall RGBtoYCrCb_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch); 
-void _stdcall RGBtoYUV422_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidth,DWORD dwHeight,DWORD dwSPitch,DWORD dwDPitch); 
-};
 
 struct CorePNGCodecPrivate {
 	CorePNGCodecPrivate() { 
@@ -262,6 +270,7 @@ DWORD CorePNG_GetRegistryValue(char *value_key, DWORD default_value);
 void CorePNG_SetRegistryValue(char *value_key, DWORD the_value);
 
 void YV12toRGB24(BYTE *pInput, BYTE *pOutput, DWORD dwWidth, DWORD dwHeight);
+void YV12toYUY2(BYTE *pInput, BYTE *pOutput, DWORD dwWidth, DWORD dwHeight);
 void YV12toRGB24_Resample(CxImage &Y_plane, CxImage &U_plane, CxImage &V_plane, BYTE *pOutput, WORD wMethod);
 
 #endif // __VFW_HANDLER_H_

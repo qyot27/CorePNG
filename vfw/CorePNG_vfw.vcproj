@@ -199,6 +199,9 @@
 			<File
 				RelativePath="mdump.cpp">
 			</File>
+			<File
+				RelativePath="quadrantscan.cpp">
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -211,6 +214,9 @@
 			</File>
 			<File
 				RelativePath="mdump.h">
+			</File>
+			<File
+				RelativePath="quadrantscan.h">
 			</File>
 			<File
 				RelativePath="resource.h">
@@ -226,27 +232,37 @@
 				RelativePath="driverproc.def">
 			</File>
 		</Filter>
-		<File
-			RelativePath="RGBYUV.asm">
-			<FileConfiguration
-				Name="Debug|Win32">
-				<Tool
-					Name="VCCustomBuildTool"
-					Description="Assembling $(InputName)"
-					CommandLine="ml /c /Fo$(IntDir)\$(InputName).obj  &quot;$(InputPath)&quot;
+		<Filter
+			Name="Colorspace Conversion"
+			Filter="">
+			<File
+				RelativePath="RGBYUV.asm">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCustomBuildTool"
+						Description="Assembling $(InputName)"
+						CommandLine="ml /c /Fo$(IntDir)\$(InputName).obj  &quot;$(InputPath)&quot;
 "
-					Outputs="$(IntDir)\$(InputName).obj"/>
-			</FileConfiguration>
-			<FileConfiguration
-				Name="Release|Win32">
-				<Tool
-					Name="VCCustomBuildTool"
-					Description="Assembling $(InputName)"
-					CommandLine="ml /c /Fo$(IntDir)\$(InputName).obj  &quot;$(InputPath)&quot;
+						Outputs="$(IntDir)\$(InputName).obj"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCustomBuildTool"
+						Description="Assembling $(InputName)"
+						CommandLine="ml /c /Fo$(IntDir)\$(InputName).obj  &quot;$(InputPath)&quot;
 "
-					Outputs="$(IntDir)\$(InputName).obj"/>
-			</FileConfiguration>
-		</File>
+						Outputs="$(IntDir)\$(InputName).obj"/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="convert_yv12.cpp">
+			</File>
+			<File
+				RelativePath="convert_yv12.h">
+			</File>
+		</Filter>
 	</Files>
 	<Globals>
 	</Globals>

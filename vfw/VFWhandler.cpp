@@ -331,7 +331,66 @@ int VFWhandler::CompressKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2)
 			m_DeltaFrame = m_Image;
 			m_DeltaFrameCount++;
 		}
+#ifdef QUADRANT_SCAN_TEST
+		int dummy = 0;
+		int **scantable = NULL;
+		scantable = new int*[1024+1];
+		memset(scantable, 0, sizeof(int)*1024);
+		for (DWORD h = 0; h < 1024; h++) {
+			scantable[h] = new int[1024+1];
+			memset(scantable[h], 0, sizeof(int)*1024);
+		}
+		for (DWORD h = 0; h < m_Image.GetHeight(); h++) {
+			for (DWORD w = 0; w < m_Image.GetWidth(); w++) {
+				scantable[w][h] = 1;
+			}
+		}
+		QuadrantScan(scantable, 0, 0, 1024, 1024, 1024, dummy);
+		{
+			CxIOFile textFile;
+			char txt_buffer[1024];
+			textFile.Open("D:\\test.txt", "w");
+			for (DWORD h = 0; h < 1024; h++) {
+				for (DWORD w = 0; w < 1024; w++) {
+					wsprintf(txt_buffer, "%i ", scantable[w][h]);
+					textFile.Write(txt_buffer, lstrlen(txt_buffer), 1);
+				}
+				textFile.Write("\n", 1, 1);
+			}
+		}
+		CxImage scanImage = m_Image;
+		for (DWORD y1 = 0; y1 < m_Image.GetHeight(); y1++) {
+			for (DWORD x1 = 0; x1 < m_Image.GetWidth(); x1++) {
+				int x2, y2 = 0;
+				if (scantable[x1][y1] > m_Image.GetWidth()) {
+					y2 = scantable[x1][y1] / m_Image.GetWidth();
+				} else {
+					y2 = 0;
+				}
+				x2 =  scantable[x1][y1] - y2 * m_Image.GetWidth();
+				m_Image.SetPixelColor(x1, y1, scanImage.GetPixelColor(x2, y2));
+			}
+		}
+		// Recreate the image
+		for (DWORD y1 = 0; y1 < m_Image.GetHeight(); y1++) {
+			for (DWORD x1 = 0; x1 < m_Image.GetWidth(); x1++) {
+				int x2, y2 = 0;
+				if (scantable[x1][y1] > m_Image.GetWidth()) {
+					y2 = scantable[x1][y1] / m_Image.GetWidth();
+				} else {
+					y2 = 0;
+				}
+				x2 =  scantable[x1][y1] - y2 * m_Image.GetWidth();
+				scanImage.SetPixelColor(x2, y2, m_Image.GetPixelColor(x1, y1));
+			}
+		}
+		m_Image.Draw(GetDC(NULL));
+		scanImage.Draw(GetDC(NULL));
 		
+		m_Image.Save("D:\kim_quadrant.png", CXIMAGE_FORMAT_PNG);
+		scanImage.Save("D:\\kim_orig.png", CXIMAGE_FORMAT_PNG);		
+#endif
+
 		// Encode 24-bit
 		if (lParam1->lpOutput != NULL) {
 			// Write directly to the VFW buffer
@@ -1342,6 +1401,73 @@ int VFWhandler::DecompressYV12Frame(ICDECOMPRESS* lParam1)
 		outputYUV2Data += V_Channel.GetSizeImage();
 		memcpy(outputYUV2Data, U_Channel.GetBits(), U_Channel.GetSizeImage());
 				
+	} else if (m_Output_Mode == PNGOutputMode_YUY2) {
+		// Double-check the output fourcc
+		assert(lParam1->lpbiOutput->biCompression == FOURCC_YUY2);
+
+		// Preserve the previous frame
+		if (lParam1->dwFlags == ICDECOMPRESS_NOTKEYFRAME) {
+			Y_Channel_Delta = Y_Channel;
+			U_Channel_Delta = U_Channel;
+			V_Channel_Delta = V_Channel;
+		}
+
+		// Now decompress the frame.
+		CxMemFile memFile((BYTE *)lParam1->lpInput, lActual);
+		Y_Channel.Decode(&memFile);		
+		U_Channel.Decode(&memFile);		
+		V_Channel.Decode(&memFile);		
+		
+		//Y_Channel.Draw(GetDC(NULL));
+		//U_Channel.Draw(GetDC(NULL));
+		//V_Channel.Draw(GetDC(NULL));
+
+		if (lParam1->dwFlags == ICDECOMPRESS_NOTKEYFRAME) {
+			// Mix the old image and the new image together
+			BYTE *Y_data = (BYTE *)Y_Channel.GetBits();
+			BYTE *U_data = (BYTE *)U_Channel.GetBits();
+			BYTE *V_data = (BYTE *)V_Channel.GetBits();
+
+			BYTE *Y_Delta_data = (BYTE *)Y_Channel_Delta.GetBits();
+			BYTE *U_Delta_data = (BYTE *)U_Channel_Delta.GetBits();
+			BYTE *V_Delta_data = (BYTE *)V_Channel_Delta.GetBits();
+
+			for (DWORD d = 0; d < Y_Channel.GetSizeImage(); d++)
+				Y_data[d] = Y_data[d] + Y_Delta_data[d];
+			
+			for (DWORD d = 0; d < U_Channel.GetSizeImage(); d++)
+				U_data[d] = U_data[d] + U_Delta_data[d];
+			
+			for (DWORD d = 0; d < V_Channel.GetSizeImage(); d++)
+				V_data[d] = V_data[d] + V_Delta_data[d];
+
+			// Copy and Compare to the previous frame
+			/*for (DWORD height = 0; height < Y_Channel.GetHeight()*2; height++) {
+				for (DWORD width = 0; width < Y_Channel.GetWidth(); width += 4) {
+					Y_data++[0] = Y_data[width+0] + Y_Delta_data++[0];
+					U_data++[0] = U_data[width+1] + U_Delta_data++[0];
+					Y_data++[0] = Y_data[width+2] + Y_Delta_data++[0];
+					V_data++[0] = V_data[width+3] + V_Delta_data++[0];					
+				}				
+			}		*/
+
+			Y_Channel_Delta = Y_Channel;
+			U_Channel_Delta = U_Channel;
+			V_Channel_Delta = V_Channel;
+		}
+
+		// Call Klaus Post's mmx YV12->YUY2 conversion routine
+		mmx_yv12_to_yuy2(
+			Y_Channel.GetBits(),
+			V_Channel.GetBits(), 
+			U_Channel.GetBits(), 
+			Y_Channel.GetWidth(), // rowsize
+			Y_Channel.GetWidth(), // pitch
+			Y_Channel.GetWidth()/2, // pitch_uv
+			(BYTE *)lParam1->lpOutput, 
+			Y_Channel.GetWidth()*2, // dst_pitch
+			Y_Channel.GetHeight());
+
 	} else if (m_Output_Mode == PNGOutputMode_RGB24) {
 		// Double-check the output fourcc
 		assert(lParam1->lpbiOutput->biCompression == BI_RGB);
@@ -1481,6 +1607,11 @@ int VFWhandler::VFW_decompress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* 
 					m_Output_Mode = PNGOutputMode_IYUV;
 					return ICERR_OK;
 				}
+				if (output->biCompression == FOURCC_YUY2 && output->biBitCount == 16) {
+					// Final output needs to be converted to YUY2
+					m_Output_Mode = PNGOutputMode_YUY2;
+					return ICERR_OK;
+				}
 				if (output->biCompression == BI_RGB && output->biBitCount == 24) {
 					// Final output needs to be in RGB24
 					m_Output_Mode = PNGOutputMode_RGB24;
@@ -1517,38 +1648,42 @@ int VFWhandler::VFW_decompress_get_format(BITMAPINFOHEADER* input, BITMAPINFOHEA
 {
 	ODS("VFWhandler::VFW_decompress_get_format()");
 	VFW_CODEC_CRASH_CATCHER_START;
-	if (output != NULL) {		
-		output->biSize = input->biSize;
-		output->biWidth = input->biWidth;
-		output->biHeight = input->biHeight;
-		output->biPlanes = input->biPlanes;
-		output->biBitCount = input->biBitCount;
-		output->biSizeImage = input->biSizeImage;		
-		// RGB compressed or old-style (RGB Only)?
-		if (input->biSize >= sizeof(BITMAPINFOHEADER) 
-			|| ((CorePNGCodecPrivate *)((BYTE *)input)+sizeof(BITMAPINFOHEADER))->bType == PNGFrameType_RGB24)
-		{
-			output->biCompression = BI_RGB;
-			if (m_DecodeToRGB24) {
-				output->biBitCount = 24;				
-			}
-		} else {
-			// Ok we check which other type is it
-			CorePNGCodecPrivate *codecPrivate = (CorePNGCodecPrivate *)((BYTE *)input)+sizeof(BITMAPINFOHEADER);
-			if (codecPrivate->bType == PNGFrameType_YUY2) {
-				output->biCompression = FOURCC_YUY2;
-				output->biBitCount = 16;
-				output->biSizeImage = output->biWidth * output->biHeight * output->biBitCount;
-			} else if (codecPrivate->bType == PNGFrameType_YV12) {
-				output->biCompression = FOURCC_YV12;
-				output->biBitCount = 12;
-				output->biSizeImage = output->biWidth * output->biHeight * output->biBitCount;
+	if (input->biCompression == FOURCC_PNG || input->biCompression == FOURCC_PNG_OLD)
+	{
+		if (output != NULL) {		
+			output->biSize = input->biSize;
+			output->biWidth = input->biWidth;
+			output->biHeight = input->biHeight;
+			output->biPlanes = input->biPlanes;
+			output->biBitCount = input->biBitCount;
+			output->biSizeImage = input->biSizeImage;		
+			// RGB compressed or old-style (RGB Only)?
+			if (input->biSize >= sizeof(BITMAPINFOHEADER) 
+				|| ((CorePNGCodecPrivate *)((BYTE *)input)+sizeof(BITMAPINFOHEADER))->bType == PNGFrameType_RGB24)
+			{
+				output->biCompression = BI_RGB;
+				if (m_DecodeToRGB24) {
+					output->biBitCount = 24;				
+				}
 			} else {
-				return ICERR_BADFORMAT;
+				// Ok we check which other type is it
+				CorePNGCodecPrivate *codecPrivate = (CorePNGCodecPrivate *)((BYTE *)input)+sizeof(BITMAPINFOHEADER);
+				if (codecPrivate->bType == PNGFrameType_YUY2) {
+					output->biCompression = FOURCC_YUY2;
+					output->biBitCount = 16;
+					output->biSizeImage = output->biWidth * output->biHeight * output->biBitCount;
+				} else if (codecPrivate->bType == PNGFrameType_YV12) {
+					output->biCompression = FOURCC_YV12;
+					output->biBitCount = 12;
+					output->biSizeImage = output->biWidth * output->biHeight * output->biBitCount;
+				} else {
+					return ICERR_BADFORMAT;
+				}
 			}
 		}
+		return ICERR_OK;
 	}
-	return ICERR_OK;
+	return ICERR_BADFORMAT;
 	VFW_CODEC_CRASH_CATCHER_END;
 }
 
@@ -1587,7 +1722,7 @@ int VFWhandler::VFW_decompress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* 
 			m_Output_Mode = PNGOutputMode_RGB24;
 			// Prep our temporay decode buffer
 			m_DecodeBuffer.Open();
-			m_DecodeBuffer.Seek(output->biHeight * output->biWidth * (16 / 8), 0);
+			m_DecodeBuffer.Seek(abs(output->biHeight) * output->biWidth * (16 / 8), 0);
 			m_DecodeBuffer.Write(" ", 1, 1);
 			m_DecodeBuffer.Seek(0, 0);
 		} else if (output->biCompression == FOURCC_YVYU) {
@@ -1609,7 +1744,15 @@ int VFWhandler::VFW_decompress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* 
 			m_Output_Mode = PNGOutputMode_RGB24;			
 		} else if (output->biCompression == FOURCC_IYUV && output->biBitCount == 12) {
 			// Final output needs the U and V planes swapped from YV12
-			m_Output_Mode = PNGOutputMode_IYUV;					
+			m_Output_Mode = PNGOutputMode_IYUV;			
+		} else if (output->biCompression == FOURCC_YUY2 && output->biBitCount == 16) {
+			// Final output needs to be converted to YUY2
+			m_Output_Mode = PNGOutputMode_YUY2;					
+			// Prep our temporay decode buffer
+			m_DecodeBuffer.Open();
+			m_DecodeBuffer.Seek(abs(output->biHeight) * output->biWidth * 2, 0);
+			m_DecodeBuffer.Write(" ", 1, 1);
+			m_DecodeBuffer.Seek(0, 0);			
 		} else {
 			return ICERR_BADFORMAT;
 		}
@@ -2136,6 +2279,45 @@ void YV12toRGB24(BYTE *pInput, BYTE *pOutput, DWORD dwWidth, DWORD dwHeight)
 		lprgbDst  = (RGBTRIPLE *)((LPBYTE)lprgbDst  + dwWidthBytes);
 	}
 	*/
+};
+
+void YV12toYUY2(BYTE *pInput, BYTE *pOutput, DWORD dwWidth, DWORD dwHeight)
+{	
+	DWORD dwEffWidth = dwWidth*4;
+	BYTE *y_plane = pInput;
+	BYTE *u_plane = pInput + (dwHeight/4 * dwWidth/4);
+	BYTE *v_plane = pInput + (dwHeight/4 * dwWidth/4);
+	BYTE *firstScanLine = pOutput;
+	BYTE *secondScanLine = pOutput+dwEffWidth;
+
+#ifdef _DEBUG
+	// Set the whole plane to black
+	memset(pOutput, 0, dwEffWidth*dwHeight);
+#endif
+	// We do two rows at a time
+	for (DWORD y = 0; y < dwHeight*2; y++) {
+		for (DWORD x = 0; x < dwWidth; x+=4) {
+			//firstScanLine[x] = 235;
+			//firstScanLine[x+2] = 235;
+			//secondScanLine[x] = 235;
+			
+			//firstScanLine[x+2] = 235;
+			//secondScanLine[x+2] = 235;
+			firstScanLine[x] = y_plane[x+0];
+			secondScanLine[x] = y_plane[x+0];		
+						
+			firstScanLine[x+1] = u_plane[0];			
+			secondScanLine[x+1] = u_plane++[0];
+
+			firstScanLine[x+3] = v_plane[0];
+			secondScanLine[x+3] = v_plane++[0];
+							
+			firstScanLine[x+2] = y_plane[x+1];
+			secondScanLine[x+2] = y_plane[x+1];			
+		}
+		firstScanLine += dwEffWidth*2;
+		secondScanLine += dwEffWidth*2;
+	}
 };
 
 void YV12toRGB24_Resample(CxImage &Y_plane, CxImage &U_plane, CxImage &V_plane, BYTE *pOutput, WORD wMethod)
