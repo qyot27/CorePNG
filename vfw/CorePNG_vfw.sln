@@ -5,6 +5,7 @@ Global
 	GlobalSection(SolutionConfiguration) = preSolution
 		ConfigName.0 = Debug
 		ConfigName.1 = Release
+		ConfigName.2 = Release MAX
 	EndGlobalSection
 	GlobalSection(ProjectDependencies) = postSolution
 	EndGlobalSection
@@ -13,6 +14,8 @@ Global
 		{BBA27C7F-8D5D-48A7-9EBF-55DB6C6860EB}.Debug.Build.0 = Debug|Win32
 		{BBA27C7F-8D5D-48A7-9EBF-55DB6C6860EB}.Release.ActiveCfg = Release|Win32
 		{BBA27C7F-8D5D-48A7-9EBF-55DB6C6860EB}.Release.Build.0 = Release|Win32
+		{BBA27C7F-8D5D-48A7-9EBF-55DB6C6860EB}.Release MAX.ActiveCfg = Release MAX|Win32
+		{BBA27C7F-8D5D-48A7-9EBF-55DB6C6860EB}.Release MAX.Build.0 = Release MAX|Win32
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 	EndGlobalSection

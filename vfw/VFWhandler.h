@@ -25,6 +25,9 @@
 
 #include "resource.h"
 
+#define COREPNG_VFW_VERSION "CorePNG VFW Codec v0.6"
+#define COREPNG_VFW_VERSIONW L"CorePNG VFW Codec v0.6"
+
 #ifndef _DEBUG
 #define VFW_CODEC_CRASH_CATCHER_START \
 	try {
@@ -37,10 +40,23 @@
 #define VFW_CODEC_CRASH_CATCHER_END
 #endif
 
-#define FOURCC_YUV2 mmioFOURCC('Y','U','V','2')
+#define FOURCC_YV12 mmioFOURCC('Y','V','1','2')
 #define FOURCC_YUY2 mmioFOURCC('Y','U','Y','2')
 #define FOURCC_PNG mmioFOURCC('P','N','G','1')
 #define FOURCC_PNG_OLD mmioFOURCC('P','N','G',' ')
+
+#define PNGFrameType_RGB24 0x01
+#define PNGFrameType_YUY2  0x02
+#define PNGFrameType_YV12  0x03
+
+struct CorePNGCodecPrivate {
+	CorePNGCodecPrivate() { 
+		wSize = sizeof(CorePNGCodecPrivate); 
+		bType = PNGFrameType_RGB24;
+	};
+	WORD wSize;
+	BYTE bType;
+};
 
 struct CorePNGCodecSettings {
 	CorePNGCodecSettings() {
@@ -90,11 +106,17 @@ public:
 
 	BOOL ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 protected:
-	inline int CompresssKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2);
-	inline int CompresssDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2);
-	inline int CompresssDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2);
+	inline bool CreateYUY2(BITMAPINFOHEADER* input);
+	inline void CompressYUY2KeyFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
+	inline void CompressYUY2DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBuffer);
+
+	inline int CompressKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2);
+	inline int CompressDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2);
+	inline int CompressDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2);
 	inline RGBQUAD AveragePixels(DWORD x, DWORD y);
 	
+	CorePNGCodecPrivate m_CodecPrivate;
+
 	DWORD m_BufferSize;
 	CxImage myLogo;
 	CxImagePNG m_Image;
@@ -107,6 +129,18 @@ protected:
 	//DWORD m_DropFrameThreshold;
 	WORD m_DeltaFrameCount;	
 	//bool m_DeltaFramesEnabled;
+
+	BYTE m_YUV_Mode;
+	DWORD m_Height;
+	DWORD m_HeightDouble;
+	DWORD m_Width;
+	DWORD m_ImageSize;
+	CxImagePNG Y_Channel;		
+	CxImagePNG U_Channel;		
+	CxImagePNG V_Channel;
+	CxImagePNG Y_Channel_Delta;		
+	CxImagePNG U_Channel_Delta;		
+	CxImagePNG V_Channel_Delta;
 };
 
 BOOL CALLBACK ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);

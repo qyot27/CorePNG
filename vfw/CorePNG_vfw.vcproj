@@ -64,7 +64,8 @@
 			OutputDirectory="Release"
 			IntermediateDirectory="Release"
 			ConfigurationType="2"
-			CharacterSet="2">
+			CharacterSet="2"
+			WholeProgramOptimization="FALSE">
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="2"
@@ -94,6 +95,65 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib winmm.lib ..\CxImage\CxImage\CxImageDLL\Release\CxImageCrtDll_png_static.lib"
+				OutputFile="$(OutDir)/CorePNG_vfw.dll"
+				LinkIncremental="1"
+				ModuleDefinitionFile="driverproc.def"
+				GenerateDebugInformation="TRUE"
+				SubSystem="2"
+				OptimizeReferences="2"
+				EnableCOMDATFolding="2"
+				TargetMachine="1"/>
+			<Tool
+				Name="VCMIDLTool"/>
+			<Tool
+				Name="VCPostBuildEventTool"/>
+			<Tool
+				Name="VCPreBuildEventTool"/>
+			<Tool
+				Name="VCPreLinkEventTool"/>
+			<Tool
+				Name="VCResourceCompilerTool"/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"/>
+			<Tool
+				Name="VCWebDeploymentTool"/>
+		</Configuration>
+		<Configuration
+			Name="Release MAX|Win32"
+			OutputDirectory="Release MAX"
+			IntermediateDirectory="Release MAX"
+			ConfigurationType="2"
+			CharacterSet="2"
+			WholeProgramOptimization="TRUE">
+			<Tool
+				Name="VCCLCompilerTool"
+				Optimization="2"
+				GlobalOptimizations="TRUE"
+				InlineFunctionExpansion="2"
+				EnableIntrinsicFunctions="TRUE"
+				FavorSizeOrSpeed="1"
+				OmitFramePointers="TRUE"
+				EnableFiberSafeOptimizations="TRUE"
+				OptimizeForProcessor="2"
+				AdditionalIncludeDirectories="..\;..\CxImage\CxImage\;..\CxImage\png\;..\CxImage\zlib\"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL"
+				StringPooling="TRUE"
+				RuntimeLibrary="0"
+				BufferSecurityCheck="FALSE"
+				EnableFunctionLevelLinking="TRUE"
+				UsePrecompiledHeader="0"
+				WarningLevel="4"
+				Detect64BitPortabilityProblems="TRUE"
+				DebugInformationFormat="0"/>
+			<Tool
+				Name="VCCustomBuildTool"
+				Description="Copying vfw DLL to system32 directory..."
+				CommandLine="copy &quot;$(TargetPath)&quot; &quot;C:\windows\system32\&quot;
+"
+				Outputs="C:\windows\system32\$(TargetFileName)"/>
+			<Tool
+				Name="VCLinkerTool"
+				AdditionalDependencies="comctl32.lib winmm.lib ..\CxImage\CxImage\CxImageDLL\Release MAX\CxImageCrtDll_png_static.lib"
 				OutputFile="$(OutDir)/CorePNG_vfw.dll"
 				LinkIncremental="1"
 				ModuleDefinitionFile="driverproc.def"

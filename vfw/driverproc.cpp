@@ -111,12 +111,12 @@ extern "C" __declspec(dllexport) LRESULT WINAPI DriverProc(DWORD dwDriverId, HDR
 
 			icinfo->fccType = ICTYPE_VIDEO;
 			icinfo->fccHandler = FOURCC_PNG;
-			icinfo->dwFlags = VIDCF_FASTTEMPORALC | VIDCF_FASTTEMPORALD;
+			icinfo->dwFlags = VIDCF_FASTTEMPORALC | VIDCF_FASTTEMPORALD | VIDCF_TEMPORAL;
 			icinfo->dwVersion = 0;
 			icinfo->dwVersionICM = ICVERSION;
 			
 			wcscpy(icinfo->szName, L"CorePNG"); 
-			wcscpy(icinfo->szDescription, L"CorePNG Video Codec v0.5");
+			wcscpy(icinfo->szDescription, COREPNG_VFW_VERSIONW);
 						
 			return lParam2;
 		}
