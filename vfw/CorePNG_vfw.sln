@@ -1,0 +1,21 @@
+Microsoft Visual Studio Solution File, Format Version 7.00
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CorePNG_vfw", "CorePNG_vfw.vcproj", "{BBA27C7F-8D5D-48A7-9EBF-55DB6C6860EB}"
+EndProject
+Global
+	GlobalSection(SolutionConfiguration) = preSolution
+		ConfigName.0 = Debug
+		ConfigName.1 = Release
+	EndGlobalSection
+	GlobalSection(ProjectDependencies) = postSolution
+	EndGlobalSection
+	GlobalSection(ProjectConfiguration) = postSolution
+		{BBA27C7F-8D5D-48A7-9EBF-55DB6C6860EB}.Debug.ActiveCfg = Debug|Win32
+		{BBA27C7F-8D5D-48A7-9EBF-55DB6C6860EB}.Debug.Build.0 = Debug|Win32
+		{BBA27C7F-8D5D-48A7-9EBF-55DB6C6860EB}.Release.ActiveCfg = Release|Win32
+		{BBA27C7F-8D5D-48A7-9EBF-55DB6C6860EB}.Release.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+	EndGlobalSection
+	GlobalSection(ExtensibilityAddIns) = postSolution
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,85 @@
+[Version]
+Signature = "$CHICAGO$"
+Class = MEDIA
+
+[SourceDisksNames]
+1="CorePNG Video Codec Install Disk",, 0001
+
+[SourceDisksFiles]
+WARP_vfw.dll=1
+
+[Installable.Drivers]
+WARP = 1:CorePNG_vfw.dll, "VIDC.PNG ", "PNG", , ,
+
+[DefaultInstall]
+CopyFiles=PNG.Copy,WARP.Copy.Inf
+Updateinis = PNG.Updateini
+addreg = PNG.AddReg,PNG.AddReg9x, WARP.FilterReg
+MediaType = SOFTWARE
+
+[DefaultInstall.ntx86]
+CopyFiles=PNG.Copy,PNG.Copy.Inf
+Updateinis = PNG.Updateini
+addreg = PNG.AddReg,PNG.AddRegNT,PNG.FilterReg
+MediaType = SOFTWARE
+
+[Remove_Wavelet]
+DelReg = PNG.DelReg
+AddReg = PNG.FilterUnReg
+UpdateInis = PNG.DelIni
+DelFiles = PNG.Copy,PNG.Copy.Inf
+
+
+[PNG.Copy]
+CorePNG_vfw.dll
+
+[PNG.Copy.Inf]
+PNG_vfw.inf
+
+[PNG.UpdateIni]
+system.ini, drivers32,,"VIDC.PNG1=CorePNG_vfw.dll"
+
+[PNG.DelIni]
+system.ini, drivers32,"VIDC.PNG1=CorePNG_vfw.dll",
+
+[PNG.AddReg]
+
+[PNG.AddReg9x]
+HKLM,SYSTEM\CurrentControlSet\Control\MediaResources\icm\VIDC.PNG1,Description,,"PNG"
+HKLM,SYSTEM\CurrentControlSet\Control\MediaResources\icm\VIDC.PNG1,Driver,,CorePNG_vfw.dll
+HKLM,SYSTEM\CurrentControlSet\Control\MediaResources\icm\VIDC.PNG1,FriendlyName,,"PNG"
+HKLM,%UnInstallPath%,DisplayName,,%UninstallDispName%
+HKLM,%UnInstallPath%,UninstallString,,"%10%\rundll.exe setupx.dll,InstallHinfSection Remove_Wavelet 132 %17%\%InfFile%"
+
+[PNG.AddRegNT]
+HKLM,SOFTWARE\Microsoft\Windows NT\CurrentVersion\drivers.desc,CorePNG_vfw.dll,,"CorePNG"
+HKLM,SOFTWARE\Microsoft\Windows NT\CurrentVersion\drivers32,VIDC.PNG1,,CorePNG_vfw.dll
+
+HKLM,%UnInstallPath%,DisplayName,,%UninstallDispName%
+HKLM,%UnInstallPath%,UninstallString,,"%11%\rundll32.exe setupapi,InstallHinfSection Remove_Wavelet 132 %17%\%InfFile%"
+
+[PNG.DelReg]
+HKLM,SYSTEM\CurrentControlSet\Control\MediaResources\icm\VIDC.PNG1
+HKLM,SOFTWARE\Microsoft\Windows NT\CurrentVersion\drivers.desc,CorePNG_vfw.dll,,""
+HKLM,%UnInstallPath%
+
+[PNG.FilterReg]
+HKLM,%KEY_RUNONCE%,BatchRun1,,"regsvr32 /s %11%\CorePNG_vfw.dll"
+
+[WARP.FilterUnReg]
+HKLM,%KEY_RUNONCE%,BatchRun1,,"regsvr32 /u /s %11%\CorePNG_vfw.dll"
+
+[DestinationDirs]
+DefaultDestDir = 11	; LDID_SYS
+PNG.Copy      = 11
+PNG.Copy.Inf  = 17
+
+[Strings]
+WaveletFast="CorePNG VFW Video Codec"
+InfFile="CorePNG_vfw.inf"
+UninstallDispName="CorePNG VFW video codec"
+UnInstallPath="Software\Microsoft\Windows\CurrentVersion\Uninstall\CorePNG"
+MediaClassName="Media Devices"
+mfgname="Gldm"
+KEY_RUNONCE="SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
+
