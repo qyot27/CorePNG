@@ -1,4 +1,21 @@
-#pragma once
+// ----------------------------------------------------------------------------
+// CorePNG VFW Codec
+// http://corecodec.org/projects/coreflac
+//
+// Copyright (C) 2003 Jory Stone
+// based on WARP VFW interface by General Lee D. Mented (gldm@mail.com)
+//
+// This file may be distributed under the terms of the Q Public License
+// as defined by Trolltech AS of Norway and appearing in the file
+// copying.txt included in the packaging of this file.
+//
+// This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE
+// WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+//
+//-----------------------------------------------------------------------------
+
+#ifndef __VFW_HANDLER_H_
+#define __VFW_HANDLER_H_
 
 #include <windows.h>
 #include <commctrl.h>
@@ -96,3 +113,6 @@ BOOL CALLBACK ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM l
 
 DWORD CorePNG_GetRegistryValue(char *value_key, DWORD default_value);
 void CorePNG_SetRegistryValue(char *value_key, DWORD the_value);
+
+#endif // __VFW_HANDLER_H_
+

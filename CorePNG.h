@@ -1,19 +1,12 @@
 // ----------------------------------------------------------------------------
 // CorePNG
+// http://corecodec.org/projects/coreflac
 //
 // Copyright (C) 2003 Jory Stone
 //
 // This file may be distributed under the terms of the Q Public License
 // as defined by Trolltech AS of Norway and appearing in the file
-// LICENSE.QPL included in the packaging of this file.
-//
-// This file may be distributed and/or modified under the terms of the
-// GNU General Public License version 2 as published by the Free Software
-// Foundation and appearing in the file LICENSE.GPL included in the
-// packaging of this file.
-//
-// Licensees holding an other license may use this file in accordance with 
-// the Agreement provided with the Software.
+// copying.txt included in the packaging of this file.
 //
 // This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE
 // WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.

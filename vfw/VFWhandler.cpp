@@ -1,11 +1,18 @@
-/******************************************************************************
-* VFWhandler.cpp
-*
-* For CorePNG Codec Video For Windows interface
-* by Jory Stone 
-* based on WARP VFW interface by General Lee D. Mented (gldm@mail.com)
-*
-******************************************************************************/
+// ----------------------------------------------------------------------------
+// CorePNG VFW Codec
+// http://corecodec.org/projects/coreflac
+//
+// Copyright (C) 2003 Jory Stone
+// based on WARP VFW interface by General Lee D. Mented (gldm@mail.com)
+//
+// This file may be distributed under the terms of the Q Public License
+// as defined by Trolltech AS of Norway and appearing in the file
+// copying.txt included in the packaging of this file.
+//
+// This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE
+// WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+//
+//-----------------------------------------------------------------------------
 
 #include "VFWhandler.h"
 
@@ -397,26 +404,57 @@ int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 
 	if (lParam1->lpbiOutput->biBitCount == 32) {
 		// Convert the 24-bit+Alpha to 32-bits
-		RGBTRIPLE *decodedImage = (RGBTRIPLE *)m_Image.GetBits();	
-		RGBQUAD *decodedOutput = (RGBQUAD *)lParam1->lpOutput;
+		//BITMAPINFOHEADER *decodedImageHeader = (BITMAPINFOHEADER *)m_Image.GetDIB();		
+		DWORD sourceHeight = m_Image.GetHeight();
+		DWORD sourceWidth = m_Image.GetWidth();
+		DWORD effWidth = m_Image.GetWidth()*4;
+		BYTE *decodedOutput = (BYTE *)lParam1->lpOutput + (m_Image.GetHeight() - 1) * effWidth;
+		RGBQUAD temp;
+		
+		/*__asm {
+			;Start Height loop
+			xor ecx,ecx
+_HEIGHT_LOOP:
+			; Start Width Loop
+			xor esi,esi 
+_WIDTH_LOOP:			
+			;Copy the pixel colors
+			push        eax  
+			push        esi  
+			lea         edx,[ebp-1Ch] 
+			push        edx  
+			lea         ecx,[ebx+1B8h] 
+			call        CxImage::GetPixelColor
+			mov         eax,dword ptr [eax] 
+			mov         ecx,dword ptr [ebp-14h] 
+			mov         dword ptr [edi+esi*4],eax 
+			mov         eax,dword ptr [lParam1] 
+			
+			inc esi ; Increase our width loop counter
+			jl _WIDTH_LOOP ; Jump back to the start
 
-		for (DWORD height = 0; height < m_Image.GetHeight(); height++) {
-			for (DWORD width = 0; width < m_Image.GetWidth(); width++) {
-				decodedOutput[(m_Image.GetWidth()*height)+width].rgbBlue = decodedImage[(m_Image.GetWidth()*height)+width].rgbtBlue;
-				decodedOutput[(m_Image.GetWidth()*height)+width].rgbGreen = decodedImage[(m_Image.GetWidth()*height)+width].rgbtGreen;
-				decodedOutput[(m_Image.GetWidth()*height)+width].rgbRed = decodedImage[(m_Image.GetWidth()*height)+width].rgbtRed;
-				decodedOutput[(m_Image.GetWidth()*height)+width].rgbReserved = m_Image.AlphaGet(width, height);
+			; End Width Loop
+			; Get ready for next line
+			lea         edx,[ecx*4] 
+			sub         edi,edx 
+			mov         edx,dword ptr [ebp-18h] 			
+
+			inc ecx ; Increase our height loop counter
+			jl _HEIGHT_LOOP ; Jump back to the start
+			; End Height Loop
+		};*/
+
+		for (DWORD height = 0; height < sourceHeight; height++) {
+			for (DWORD width = 0; width < sourceWidth; width++) {
+				//temp = m_Image.GetPixelColor(width, height);
+				((RGBQUAD *)decodedOutput)[width] = m_Image.GetPixelColor(width, height);			
 			}
+			decodedOutput -= effWidth;
 		}
 	} else if (lParam1->lpbiOutput->biBitCount == 24) {
 		memcpy(lParam1->lpOutput, m_Image.GetBits(), lParam1->lpbiOutput->biSizeImage);
 	}
-/*	lParam1->lpbiOutput->biSize = sizeof(BITMAPINFOHEADER);
-	lParam1->lpbiOutput->biWidth = lParam1->lpbiInput->biWidth;
-	lParam1->lpbiOutput->biHeight = lParam1->lpbiInput->biHeight;
-	lParam1->lpbiOutput->biCompression = FOURCC_PNG;
-	lParam1->lpbiOutput->biClrUsed = 0;
-*/	
+
 	return ICERR_OK;
 	VFW_CODEC_CRASH_CATCHER_END;
 }

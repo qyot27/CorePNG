@@ -1,12 +1,21 @@
+// ----------------------------------------------------------------------------
+// CorePNG VFW Codec
+// http://corecodec.org/projects/coreflac
+//
+// Copyright (C) 2003 Jory Stone
+// based on WARP VFW interface by General Lee D. Mented (gldm@mail.com)
+//
+// This file may be distributed under the terms of the Q Public License
+// as defined by Trolltech AS of Norway and appearing in the file
+// copying.txt included in the packaging of this file.
+//
+// This file is provided AS IS with NO WARRANTY OF ANY KIND, INCLUDING THE
+// WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+//
+//-----------------------------------------------------------------------------
+
 /******************************************************************************
-*
-* driverproc.cpp
-* modified 1/17/2003
-*
-* For CorePNG Codec Video For Windows interface
-* by Jory Stone 
-* based on WARP VFW interface by General Lee D. Mented (gldm@mail.com)
-*
+* Comments by Gldm
 * This file is the entry point for a VFW DLL to begin executing. I really don't know
 * all that much about the specifics. This was derived from xvid's driverproc.c and 
 * huffyuv's driverproc.c, and converted for C++ by me. There may be bugs as I really
@@ -38,7 +47,7 @@ BOOL APIENTRY DllMain(HANDLE hModule, DWORD  ul_reason_for_call, LPVOID lpReserv
 #ifdef _DEBUG
 	// Setup the debug options
 	_CrtSetDbgFlag( _CRTDBG_ALLOC_MEM_DF 
-								//| _CRTDBG_LEAK_CHECK_DF //Check for memory leaks on app exit
+								| _CRTDBG_LEAK_CHECK_DF //Check for memory leaks on app exit
 								| _CRTDBG_CHECK_ALWAYS_DF); // Check memory heaps at each new and delete call
 	//_CrtSetAllocHook(YourAllocHook);
 #endif
