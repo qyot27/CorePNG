@@ -117,11 +117,16 @@ extern "C" __declspec(dllexport) LRESULT WINAPI DriverProc(DWORD dwDriverId, HDR
 	// If the app calls this with -1, it just wants to know if you have a
 	// configure box, so just return ok.
 	case ICM_ABOUT :
-	case ICM_CONFIGURE :
 		if (lParam1 != -1) {
-			handler->VFW_configure();
+			MessageBox(GetTopWindow(NULL), "CorePNG was developed by Jory Stone <vbman@toughguy.net>\nAs a test codec for image subtitles. But as it can be used for other things.", "About CorePNG", MB_ICONINFORMATION);
 		}
 		return ICERR_OK;
+	case ICM_CONFIGURE :
+		return ICERR_UNSUPPORTED;
+		/*if (lParam1 != -1) {
+			handler->VFW_configure();
+		}
+		return ICERR_OK;*/
 			
 	// This is used to get the configuration of the codec and store it.
 	// If the first parameter is NULL, it needs to return the size

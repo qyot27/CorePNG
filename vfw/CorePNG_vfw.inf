@@ -6,7 +6,7 @@ Class = MEDIA
 1="CorePNG Video Codec Install Disk",, 0001
 
 [SourceDisksFiles]
-WARP_vfw.dll=1
+CorePNG_vfw.dll=1
 
 [Installable.Drivers]
 WARP = 1:CorePNG_vfw.dll, "VIDC.PNG ", "PNG", , ,
@@ -34,7 +34,7 @@ DelFiles = PNG.Copy,PNG.Copy.Inf
 CorePNG_vfw.dll
 
 [PNG.Copy.Inf]
-PNG_vfw.inf
+CorePNG_vfw.inf
 
 [PNG.UpdateIni]
 system.ini, drivers32,,"VIDC.PNG1=CorePNG_vfw.dll"

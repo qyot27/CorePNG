@@ -66,9 +66,28 @@ protected:
 	long m_BufferSize;
 };
 
-class CCorePNGDecoderFilterPNGInputPin : public CTransformInputPin {
+class CCorePNGDecoderFilter : public CTransformFilter {
 public:
-	CCorePNGDecoderFilterPNGInputPin(TCHAR *pObjectName, CTransformFilter *pTransformFilter, HRESULT * phr, LPCWSTR pName);
+	CCorePNGDecoderFilter(LPUNKNOWN pUnk, HRESULT *pHr);
+	~CCorePNGDecoderFilter();
+
+	virtual HRESULT CheckInputType(const CMediaType *mtIn);
+	virtual HRESULT CheckTransform(const CMediaType *mtIn, const CMediaType *mtOut);
+	virtual HRESULT DecideBufferSize(IMemAllocator *pAlloc, ALLOCATOR_PROPERTIES *ppropInputRequest);
+	virtual HRESULT GetMediaType(int iPosition, CMediaType *pMediaType);
+	virtual HRESULT SetMediaType(PIN_DIRECTION direction, const CMediaType *pmt);
+	virtual HRESULT Transform(IMediaSample *pIn, IMediaSample *pOut);
+	static CUnknown * WINAPI CreateInstance(LPUNKNOWN pUnk, HRESULT *pHr);
+
+protected:
+	CxImage m_Image;
+	VIDEOINFOHEADER m_VideoHeader;
+	long m_BufferSize;
+};
+
+class CCorePNGSubtitlerFilterPNGInputPin : public CTransformInputPin {
+public:
+	CCorePNGSubtitlerFilterPNGInputPin(TCHAR *pObjectName, CTransformFilter *pTransformFilter, HRESULT * phr, LPCWSTR pName);
 	virtual HRESULT CheckMediaType(const CMediaType* pmt);
 	virtual STDMETHODIMP Receive(IMediaSample *pSample);
 
@@ -76,17 +95,17 @@ protected:
 
 };
 
-class CCorePNGDecoderFilterOutputPin : public CTransformOutputPin {
+class CCorePNGSubtitlerFilterOutputPin : public CTransformOutputPin {
 public:
 	HRESULT Receive(IMediaSample *pSampleToPass) { 
 		return this->m_pInputPin->Receive(pSampleToPass);
 	};
 };
 
-class CCorePNGDecoderFilter : public CTransformFilter {
+class CCorePNGSubtitlerFilter : public CTransformFilter {
 public:	
-	CCorePNGDecoderFilter(LPUNKNOWN pUnk, HRESULT *pHr);
-	~CCorePNGDecoderFilter();
+	CCorePNGSubtitlerFilter(LPUNKNOWN pUnk, HRESULT *pHr);
+	~CCorePNGSubtitlerFilter();
 	
 	virtual int GetPinCount() { return 3; };
 	virtual CBasePin *GetPin(int n);
@@ -108,7 +127,7 @@ protected:
 		return E_PENDING;
 	};
 
-	CCorePNGDecoderFilterPNGInputPin *m_pInputPNGPin;
+	CCorePNGSubtitlerFilterPNGInputPin *m_pInputPNGPin;
 	REFERENCE_TIME m_LastTimecode;
 	CxImage m_Image;
 	VIDEOINFOHEADER m_VideoHeader;

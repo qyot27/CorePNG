@@ -83,12 +83,17 @@
 				Detect64BitPortabilityProblems="TRUE"
 				DebugInformationFormat="3"/>
 			<Tool
-				Name="VCCustomBuildTool"/>
+				Name="VCCustomBuildTool"
+				Description="Copying vfw DLL to system32 directory..."
+				CommandLine="copy &quot;$(TargetPath)&quot; &quot;C:\windows\system32\&quot;
+"
+				Outputs="C:\windows\system32\$(TargetFileName)"/>
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="winmm.lib ..\..\CxImage\bin\cximagecrt_fast_.lib"
 				OutputFile="$(OutDir)/CorePNG_vfw.dll"
 				LinkIncremental="1"
+				ModuleDefinitionFile="driverproc.def"
 				GenerateDebugInformation="TRUE"
 				SubSystem="2"
 				OptimizeReferences="2"
@@ -127,10 +132,16 @@
 			<File
 				RelativePath="VFWhandler.h">
 			</File>
+			<File
+				RelativePath="resource.h">
+			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe">
+			<File
+				RelativePath="CorePNG_vfw.rc">
+			</File>
 			<File
 				RelativePath="driverproc.def">
 			</File>

@@ -72,14 +72,14 @@ BEGIN
         BEGIN
             VALUE "Comments", "http://corecodec.org/projects/vfre/\0"
             VALUE "CompanyName", "\0"
-            VALUE "FileDescription", "CorePNG DirectShow Filter\0"
+            VALUE "FileDescription", "CorePNG VFW Codec\0"
             VALUE "FileVersion", "0, 3, 1, 1\0"
             VALUE "InternalName", "CorePNG\0"
             VALUE "LegalCopyright", "Copyright © 2003 Jory Stone\0"
             VALUE "LegalTrademarks", "\0"
-            VALUE "OriginalFilename", "CorePNG.rc\0"
+            VALUE "OriginalFilename", "CorePNG_vfw.rc\0"
             VALUE "PrivateBuild", "\0"
-            VALUE "ProductName", "CorePNG DirectShow Filter\0"
+            VALUE "ProductName", "CorePNG VFW Codec\0"
             VALUE "ProductVersion", "0, 3, 1, 1\0"
             VALUE "SpecialBuild", "\0"
         END
