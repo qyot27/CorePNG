@@ -24,24 +24,24 @@ VFWhandler::~VFWhandler(void)
 	//SaveSettings();
 }
 
-void VFWhandler::LoadSettings() {
-	m_DeltaFrameLimit = CorePNG_GetRegistryValue("Keyframe Interval", 2);
+void VFWhandler::LoadSettings() {	
 	m_ZlibCompressionLevel = CorePNG_GetRegistryValue("zlib Compression Level", 6);
 	m_PNGFilters = CorePNG_GetRegistryValue("PNG Filters", PNG_ALL_FILTERS);
 	m_DeltaFramesEnabled = CorePNG_GetRegistryValue("Use Delta Frames", 0);
 	m_DeltaFrameAuto = CorePNG_GetRegistryValue("Auto Delta Frames", 0);
-	m_DecodeToRGB24 = CorePNG_GetRegistryValue("Always Decode to RGB24", 0);
+	m_DeltaFrameLimit = CorePNG_GetRegistryValue("Keyframe Interval", 30);
 	m_DropFrameThreshold = CorePNG_GetRegistryValue("Drop Frame Threshold", 0);
+	m_DecodeToRGB24 = CorePNG_GetRegistryValue("Always Decode to RGB24", 0);
 }
 
-void VFWhandler::SaveSettings() {
-	CorePNG_SetRegistryValue("Keyframe Interval", m_DeltaFrameLimit);
+void VFWhandler::SaveSettings() {	
 	CorePNG_SetRegistryValue("zlib Compression Level", m_ZlibCompressionLevel);
 	CorePNG_SetRegistryValue("PNG Filters", m_PNGFilters);
 	CorePNG_SetRegistryValue("Use Delta Frames", m_DeltaFramesEnabled);
 	CorePNG_SetRegistryValue("Auto Delta Frames", m_DeltaFrameAuto);
-	CorePNG_SetRegistryValue("Always Decode to RGB24", m_DecodeToRGB24);
+	CorePNG_SetRegistryValue("Keyframe Interval", m_DeltaFrameLimit);	
 	CorePNG_SetRegistryValue("Drop Frame Threshold", m_DropFrameThreshold);
+	CorePNG_SetRegistryValue("Always Decode to RGB24", m_DecodeToRGB24);
 }
 
 /******************************************************************************
@@ -147,6 +147,19 @@ int VFWhandler::CompresssDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2)
 	DWORD lActual = lParam1->lpbiInput->biSizeImage;
 
 	if (lParam1->lpbiInput->biBitCount == 24) {
+		if (m_DropFrameThreshold != 0) {
+			DWORD imageDiff = abs(memcmp(m_DeltaFrame.GetBits(), lParam1->lpInput, lActual));
+			if (imageDiff < m_DropFrameThreshold) {
+				// Drop this frame
+				lParam1->lpbiOutput->biSizeImage = 0;
+				lParam1->dwFlags = 0;
+				*lParam1->lpdwFlags = 0;	
+				// Increase the delta-frame count even though we drop this frame
+				m_DeltaFrameCount++;
+
+				return ICERR_OK;
+			}
+		}
 		memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
 
 		// Compare to the previous frame
@@ -196,6 +209,8 @@ int VFWhandler::CompresssDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2)
 			// Keyframe is smaller than a delta frame
 			// Replace the delta frame data in the VFW buffer with ours
 			memcpy(lParam1->lpOutput, m_MemoryBuffer.GetBuffer(), KeyFrameSize);
+			// Reset the delta frame count
+			m_DeltaFrameCount = 0;
 		} else {
 			// Delta frame gets better compression
 			// Restore the size (the VFW buffer already has the delta frame data)
@@ -307,9 +322,8 @@ int VFWhandler::VFW_compress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* ou
 	VFW_CODEC_CRASH_CATCHER_START;
 
 	m_Image.Create(input->biWidth, input->biHeight, 24);
-	if (m_ZlibCompressionLevel == 0) {
-		m_Image.SetCompressionFilters(PNG_NO_FILTERS);
-	}
+	
+	m_Image.SetCompressionFilters(m_PNGFilters);
 
 	m_Image.SetCompressionLevel(m_ZlibCompressionLevel);
 
@@ -622,19 +636,18 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 			common.dwSize = sizeof(common);
 			InitCommonControlsEx(&common);
 
-			HMODULE myModule = GetModuleHandle("CorePNG_vfw.dll");	
-			HRSRC hres = FindResource(myModule, MAKEINTRESOURCE(IDR_PNG_LOGO), "PNG");
-			HGLOBAL hgImage = LoadResource(myModule, hres);
-			myLogo.Decode((BYTE *)LockResource(hgImage), SizeofResource(myModule, hres), CXIMAGE_FORMAT_PNG);
+			HRSRC hres = FindResource(g_hInst, MAKEINTRESOURCE(IDR_PNG_LOGO), "PNG");
+			HGLOBAL hgImage = LoadResource(g_hInst, hres);
+			myLogo.Decode((BYTE *)LockResource(hgImage), SizeofResource(g_hInst, hres), CXIMAGE_FORMAT_PNG);
 
 			CheckDlgButton(hwndDlg, IDC_CHECK_DECODE_RGB24, m_DecodeToRGB24);
 			CheckDlgButton(hwndDlg, IDC_CHECK_DELTA_FRAMES, m_DeltaFramesEnabled);
 			CheckDlgButton(hwndDlg, IDC_CHECK_AUTO_DELTA_FRAMES, m_DeltaFrameAuto);
 						
-			SendDlgItemMessage(hwndDlg,	IDC_SPIN_KEYFRAME_INTERVAL, UDM_SETRANGE, 0, (LPARAM)MAKELONG(1000, 1));
+			SendDlgItemMessage(hwndDlg,	IDC_SPIN_KEYFRAME_INTERVAL, UDM_SETRANGE, 0, (LPARAM)MAKELONG(1800, 1));
 			SendDlgItemMessage(hwndDlg,	IDC_SPIN_KEYFRAME_INTERVAL, UDM_SETPOS, 0, m_DeltaFrameLimit+1);
 
-			SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_SETRANGE, 0, (LPARAM)MAKELONG(UD_MAXVAL, 0));
+			SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_SETRANGE, 0, (LPARAM)MAKELONG(10, 0));
 			SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_SETPOS, 0, m_DropFrameThreshold);
 
 			SendDlgItemMessage(hwndDlg,	IDC_COMBO_COMPRESSION_LEVEL, CB_ADDSTRING, 0, (LPARAM)"1 - Fastest");
@@ -697,7 +710,7 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 					}
 					m_ZlibCompressionLevel = GetDlgItemInt(hwndDlg, IDC_COMBO_COMPRESSION_LEVEL, NULL, FALSE);
 					m_DecodeToRGB24 = IsDlgButtonChecked(hwndDlg, IDC_CHECK_DECODE_RGB24);
-					m_DeltaFramesEnabled = (hwndDlg, IDC_CHECK_DELTA_FRAMES);
+					m_DeltaFramesEnabled = IsDlgButtonChecked(hwndDlg, IDC_CHECK_DELTA_FRAMES);
 					m_DeltaFrameAuto = IsDlgButtonChecked(hwndDlg, IDC_CHECK_AUTO_DELTA_FRAMES);
 					m_DropFrameThreshold = SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_GETPOS, 0, 0);
 					m_DeltaFrameLimit = SendDlgItemMessage(hwndDlg,	IDC_SPIN_KEYFRAME_INTERVAL, UDM_GETPOS, 0, 0)-1;
