@@ -874,7 +874,38 @@ HRESULT CCorePNGSubtitlerFilter::AlphaBlend(RGBTRIPLE *targetBits)
 
 BOOL CCorePNGSubtitlerFilter::BlendImages(RGBTRIPLE *lprgbSrc2, RGBTRIPLE *lprgbDst)
 {
-	DWORD dwWeight1;
+	RGBTRIPLE* targetBits = lprgbDst;
+	RGBTRIPLE* sourcePNG = (RGBTRIPLE *)m_Image.GetBits();	
+	RGBTRIPLE* sourceImage = (RGBTRIPLE *)lprgbSrc2;
+
+	for (DWORD height = 0; height < m_Image.GetHeight(); height++) {
+		for (DWORD width = 0; width < m_Image.GetWidth(); width++) {
+			BYTE sourcePNGAlpha;//  m_Image.AlphaGet(width, height);
+			
+			RGBQUAD sourcePixel = m_Image.GetPixelColor(width, height);			
+			if (sourcePixel.rgbBlue == 0 && sourcePixel.rgbGreen == 0 && sourcePixel.rgbRed == 0)
+				sourcePNGAlpha = 0;
+
+			if (sourcePNGAlpha == 0) {
+				// Fully transparent
+				targetBits[(m_Image.GetWidth()*height)+width] = sourceImage[(m_Image.GetWidth()*height)+width];
+			} else if (sourcePNGAlpha == 255) {
+				// Fully solid
+				targetBits[(m_Image.GetWidth()*height)+width] = sourcePNG[(m_Image.GetWidth()*height)+width];
+			} else {
+				// We have a blend
+				RGBTRIPLE sourcePNGPixel = sourcePNG[(m_Image.GetWidth()*height)+width];
+				RGBTRIPLE sourceImagePixel = sourceImage[(m_Image.GetWidth()*height)+width];
+				RGBTRIPLE* targetBitsPixel = &targetBits[(m_Image.GetWidth()*height)+width];
+				//dest' = ((weighting * source) + ((255-weighting) * dest)) / 256
+				targetBits->rgbtBlue = (sourceImagePixel.rgbtBlue * sourcePNGAlpha) + (sourcePNGPixel.rgbtBlue * (sourcePNGAlpha - 255));
+				targetBits->rgbtGreen = (sourceImagePixel.rgbtGreen * sourcePNGAlpha) + (sourcePNGPixel.rgbtGreen * (sourcePNGAlpha - 255));
+				targetBits->rgbtRed = (sourceImagePixel.rgbtRed * sourcePNGAlpha ) + (sourcePNGPixel.rgbtRed * (sourcePNGAlpha - 255));
+			}
+		}
+	}
+
+	/*DWORD dwWeight1;
 	DWORD dwWeight2;
 	DWORD dwWidthBytes = 1890;//m_VideoHeader.bmiHeader.biWidth * (m_VideoHeader.bmiHeader.biBitCount / 8);
 
@@ -901,7 +932,7 @@ BOOL CCorePNGSubtitlerFilter::BlendImages(RGBTRIPLE *lprgbSrc2, RGBTRIPLE *lprgb
 		lprgbSrc2 = (RGBTRIPLE *)((LPBYTE)lprgbSrc2 + dwWidthBytes);
 		lprgbDst  = (RGBTRIPLE *)((LPBYTE)lprgbDst  + dwWidthBytes);
 	}
-
+*/
 	return TRUE;
 }
 

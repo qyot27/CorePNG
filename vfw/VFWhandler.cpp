@@ -9,14 +9,30 @@
 
 #include "VFWhandler.h"
 
+extern HINSTANCE g_hInst;
+
 VFWhandler::VFWhandler(void)
 {
-	m_Memfile.Open();
+	m_BufferSize = 0;
+	m_DeltaFrameCount = 0;
+	LoadSettings();
 }
 
 VFWhandler::~VFWhandler(void)
 {
+	//SaveSettings();
+}
 
+void VFWhandler::LoadSettings() {
+	m_DeltaFramesEnabled = CorePNG_GetRegistryValue("Use Delta Frames", 0);
+	m_DecodeToRGB24 = CorePNG_GetRegistryValue("Always Decode to RGB24", 0);
+	m_DropFrameThreshold = CorePNG_GetRegistryValue("Drop Frame Threshold", 0);
+}
+
+void VFWhandler::SaveSettings() {
+	CorePNG_SetRegistryValue("Use Delta Frames", m_DeltaFramesEnabled);
+	CorePNG_SetRegistryValue("Always Decode to RGB24", m_DecodeToRGB24);
+	CorePNG_SetRegistryValue("Drop Frame Threshold", m_DropFrameThreshold);
 }
 
 /******************************************************************************
@@ -28,10 +44,9 @@ VFWhandler::~VFWhandler(void)
 *
 ******************************************************************************/
 
-void VFWhandler::VFW_configure()
+void VFWhandler::VFW_configure(HWND hParentWindow)
 {
-	int configcode;
-	configcode = 0;
+	DialogBoxParam(g_hInst, MAKEINTRESOURCE(IDD_PROPPAGE_CONFIG), hParentWindow, ::ConfigurationDlgProc, (LPARAM)this);	
 }
 
 /******************************************************************************
@@ -43,31 +58,96 @@ void VFWhandler::VFW_configure()
 
 int VFWhandler::VFW_compress(ICCOMPRESS* lParam1, DWORD lParam2)
 {
+	VFW_CODEC_CRASH_CATCHER_START;
+
 	DWORD lActual = lParam1->lpbiInput->biSizeImage;
 
-	// Now compress the frame.
-	if (lParam1->lpbiInput->biBitCount == 24) {
-		memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
-	} else if (lParam1->lpbiInput->biBitCount == 32) {
-		m_Image.CreateFromARGB(lParam1->lpbiInput->biWidth, lParam1->lpbiInput->biWidth, (BYTE *)lParam1->lpInput);
+	if (!m_DeltaFrameCount) {
+		// Now compress the frame.
+		if (lParam1->lpbiInput->biBitCount == 24) {
+			if (m_DropFrameThreshold != 0) {
+				DWORD imageDiff = abs(memcmp(m_Image.GetBits(), lParam1->lpInput, lActual));
+				if (imageDiff < m_DropFrameThreshold) {
+					// Drop this frame
+					lActual = 0;
+				}
+			}
+			memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
+			if (m_DeltaFramesEnabled) {
+				m_DeltaFrame = m_Image;
+				m_DeltaFrameCount++;
+			}
+		} else if (lParam1->lpbiInput->biBitCount == 32) {
+			m_Image.CreateFromARGB(lParam1->lpbiInput->biWidth, lParam1->lpbiInput->biHeight, (BYTE *)lParam1->lpInput);
+			m_Image.Flip();
+			/*
+			for (DWORD height = 0; height < m_Image.GetHeight(); height++) {
+				for (DWORD width = 0; width < m_Image.GetWidth(); width++) {
+					if (m_Image.AlphaGet(width, height) != 0)
+						lActual = lActual;
+				}
+			}
+			*/
+		}
+		if (lActual != 0) {
+			CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
+			m_Image.Encode(&memFile, CXIMAGE_FORMAT_PNG);	
+			//m_Image.Draw(GetDC(NULL));
+
+			lActual = memFile.Tell();	
+		}
+		// Now put the result back	
+		lParam1->lpbiOutput->biSizeImage = lActual;
+		lParam1->lpbiOutput->biCompression = FOURCC_PNG;
+		lParam1->dwFlags = ICCOMPRESS_KEYFRAME;
+		*lParam1->lpdwFlags = AVIIF_KEYFRAME;
+	} else {
+		// We compress a delta frame
+		if (lParam1->lpbiInput->biBitCount == 24) {
+			memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
+			m_Image.AlphaClear();
+			m_Image.AlphaCreate();
+			// Compare to the previous frame
+			RGBQUAD previousPixel;
+			RGBQUAD currentPixel;
+			for (DWORD y = 0; y < m_Image.GetHeight(); y++) {
+				for (DWORD x = 0; x < m_Image.GetWidth(); x++) {
+					currentPixel = m_Image.GetPixelColor(x, y);
+					previousPixel = m_DeltaFrame.GetPixelColor(x, y);
+					if (!memcmp(&currentPixel, &previousPixel, sizeof(RGBQUAD))) {
+						// Matching pixels
+						// Average pixels						
+						m_Image.SetPixelColor(x, y, AveragePixels(x ,y), true);		
+						//m_Image.AlphaSet(x, y, 0);
+					}
+				}
+			}
+			if (m_DeltaFrameCount++ > 0)
+				m_DeltaFrameCount = 0;
+			
+		} else {
+			// We only support delta-frames with 24-bit compression
+			return ICERR_ERROR;
+		}
+		CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
+		m_Image.Encode(&memFile, CXIMAGE_FORMAT_PNG);	
+		//m_Image.Draw(GetDC(NULL));
+
+		lActual = memFile.Tell();	
+
+		// Now put the result back	
+		lParam1->lpbiOutput->biSizeImage = lActual;
+		lParam1->lpbiOutput->biSize = sizeof(BITMAPINFOHEADER);
+		lParam1->lpbiOutput->biWidth = lParam1->lpbiInput->biWidth;
+		lParam1->lpbiOutput->biHeight = lParam1->lpbiInput->biWidth;
+		lParam1->lpbiOutput->biCompression = FOURCC_PNG;
+		lParam1->lpbiOutput->biClrUsed = 0;
+		lParam1->dwFlags = 0;
+		*lParam1->lpdwFlags = 0;
 	}
-	m_Memfile.Seek(0, 0);		
-	m_Image.Encode(&m_Memfile, CXIMAGE_FORMAT_PNG);	
-	//m_Image.Draw(GetDC(NULL));
-
-	lActual = m_Memfile.Tell();	
-
-	// Now put the result back
-	memcpy(lParam1->lpOutput, m_Memfile.GetBuffer(), lActual);
-	lParam1->lpbiOutput->biSizeImage = lActual;
-	lParam1->lpbiOutput->biSize = sizeof(BITMAPINFOHEADER);
-	lParam1->lpbiOutput->biWidth = lParam1->lpbiInput->biWidth;
-	lParam1->lpbiOutput->biHeight = lParam1->lpbiInput->biWidth;
-	lParam1->lpbiOutput->biCompression = FOURCC_PNG;
-	lParam1->lpbiOutput->biClrUsed = 0;
-	lParam1->dwFlags = ICCOMPRESS_KEYFRAME;
-	*lParam1->lpdwFlags = AVIIF_KEYFRAME;
 	return ICERR_OK;
+
+	VFW_CODEC_CRASH_CATCHER_END;
 }
 
 /******************************************************************************
@@ -81,14 +161,18 @@ int VFWhandler::VFW_compress(ICCOMPRESS* lParam1, DWORD lParam2)
 
 int VFWhandler::VFW_compress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output)
 {
-	if(input->biCompression == 0 && (input->biBitCount == 24 || input->biBitCount == 32))
+	VFW_CODEC_CRASH_CATCHER_START;
+	//if(input->biCompression == FOURCC_YUY2)
+	//	return ICERR_OK;
+
+	if(input->biCompression == 0 
+		&& (input->biBitCount == 24 || input->biBitCount == 32)) 
 	{
 		return ICERR_OK;
-	}
-	else
-	{
+	} else {
 		return ICERR_BADFORMAT;
 	}
+	VFW_CODEC_CRASH_CATCHER_END;
 }
 
 /******************************************************************************
@@ -104,20 +188,21 @@ int VFWhandler::VFW_compress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* ou
 
 int VFWhandler::VFW_compress_get_format(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output)
 {
+	VFW_CODEC_CRASH_CATCHER_START;
+	
 	if(output == NULL)
-	{
 		return sizeof(BITMAPINFOHEADER);
-	}
 
-		output->biSizeImage = input->biSizeImage;
-		output->biSize = input->biSize;
-		output->biWidth = input->biWidth;
-		output->biHeight = input->biHeight;
-		output->biCompression = FOURCC_PNG;
-		output->biClrUsed = 0;
-		output->biBitCount = input->biBitCount;
+	output->biSizeImage = input->biSizeImage;
+	output->biSize = input->biSize;
+	output->biWidth = input->biWidth;
+	output->biHeight = input->biHeight;
+	output->biCompression = FOURCC_PNG;
+	output->biClrUsed = 0;
+	output->biBitCount = input->biBitCount;
 
 	return ICERR_OK;
+	VFW_CODEC_CRASH_CATCHER_END;
 }
 
 /******************************************************************************
@@ -134,7 +219,7 @@ int VFWhandler::VFW_compress_get_format(BITMAPINFOHEADER* input, BITMAPINFOHEADE
 
 int VFWhandler::VFW_compress_get_size(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output)
 {
-	return (input->biHeight * input->biWidth * (input->biBitCount/8));
+	return m_BufferSize = (input->biHeight * input->biWidth * (input->biBitCount/8));
 }
 
 /******************************************************************************
@@ -160,9 +245,14 @@ int VFWhandler::VFW_compress_frames_info(ICCOMPRESSFRAMES* lParam1)
 
 int VFWhandler::VFW_compress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output)
 {
+	VFW_CODEC_CRASH_CATCHER_START;
+
 	m_Image.Create(input->biWidth, input->biHeight, 24);
-	//mycodec->Configure(*myconfig);
+	m_DeltaFrameCount = 0;
+	//mycodec->Configure(*myconfig);	
 	return ICERR_OK;
+
+	VFW_CODEC_CRASH_CATCHER_END;
 }
 
 /******************************************************************************
@@ -186,16 +276,17 @@ int VFWhandler::VFW_compress_end(int lParam1, int lParam2)
 
 int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 {	
+	VFW_CODEC_CRASH_CATCHER_START;
+
 	DWORD lActual = lParam1->lpbiInput->biSizeImage;
 
 	// Now decompress the frame.
 	m_Image.Decode((BYTE *)lParam1->lpInput, lActual, CXIMAGE_FORMAT_PNG);		
 
-	lParam1->lpbiOutput->biSizeImage = lParam1->lpbiInput->biWidth * lParam1->lpbiInput->biHeight * (lParam1->lpbiInput->biBitCount / 8);
+	//lParam1->lpbiOutput->biSizeImage = lParam1->lpbiInput->biWidth * lParam1->lpbiInput->biHeight * (lParam1->lpbiInput->biBitCount / 8);
 
 	if (lParam1->lpbiOutput->biBitCount == 32) {
 		// Convert the 24-bit+Alpha to 32-bits
-		m_Image.Flip();
 		RGBTRIPLE *decodedImage = (RGBTRIPLE *)m_Image.GetBits();	
 		RGBQUAD *decodedOutput = (RGBQUAD *)lParam1->lpOutput;
 
@@ -210,13 +301,14 @@ int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 	} else if (lParam1->lpbiOutput->biBitCount == 24) {
 		memcpy(lParam1->lpOutput, m_Image.GetBits(), lParam1->lpbiOutput->biSizeImage);
 	}
-	lParam1->lpbiOutput->biSize = sizeof(BITMAPINFOHEADER);
+/*	lParam1->lpbiOutput->biSize = sizeof(BITMAPINFOHEADER);
 	lParam1->lpbiOutput->biWidth = lParam1->lpbiInput->biWidth;
 	lParam1->lpbiOutput->biHeight = lParam1->lpbiInput->biHeight;
 	lParam1->lpbiOutput->biCompression = FOURCC_PNG;
 	lParam1->lpbiOutput->biClrUsed = 0;
-
+*/	
 	return ICERR_OK;
+	VFW_CODEC_CRASH_CATCHER_END;
 }
 
 /******************************************************************************
@@ -229,15 +321,23 @@ int VFWhandler::VFW_decompress(ICDECOMPRESS* lParam1, DWORD lParam2)
 
 int VFWhandler::VFW_decompress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output)
 {
+	VFW_CODEC_CRASH_CATCHER_START;
 	if (input->biCompression == FOURCC_PNG || input->biCompression == FOURCC_PNG_OLD)
 	{
 		if (output != NULL) {
 			if (output->biCompression != BI_RGB)
 				// Not RGB
 				return ICERR_BADFORMAT;
-			if (output->biBitCount != 24 && output->biBitCount != 32)
-				// Bad bit-depth
-				return ICERR_BADFORMAT;
+			if (!m_DecodeToRGB24) {
+				if (output->biBitCount != 24 && output->biBitCount != 32)
+					// Bad bit-depth
+					return ICERR_BADFORMAT;
+			} else {
+				// Only decode 24-bits
+				if (output->biBitCount != 24)
+					// Bad bit-depth
+					return ICERR_BADFORMAT;
+			}
 		}
 		return ICERR_OK;
 	}
@@ -245,6 +345,7 @@ int VFWhandler::VFW_decompress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* 
 	{
 		return ICERR_BADFORMAT;
 	}
+	VFW_CODEC_CRASH_CATCHER_END;
 }
 
 /******************************************************************************
@@ -258,15 +359,21 @@ int VFWhandler::VFW_decompress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* 
 
 int VFWhandler::VFW_decompress_get_format(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output)
 {
+	VFW_CODEC_CRASH_CATCHER_START;
 	if (output != NULL) {
 		output->biSizeImage = input->biSizeImage;
 		output->biSize = input->biSize;
 		output->biWidth = input->biWidth;
 		output->biHeight = input->biHeight;
 		output->biCompression = BI_RGB;
-		output->biBitCount = input->biBitCount;
+		if (m_DecodeToRGB24) {
+				output->biBitCount = 24;
+		} else {
+			output->biBitCount = input->biBitCount;
+		}
 	}
 	return ICERR_OK;
+	VFW_CODEC_CRASH_CATCHER_END;
 }
 
 /******************************************************************************
@@ -280,9 +387,12 @@ int VFWhandler::VFW_decompress_get_format(BITMAPINFOHEADER* input, BITMAPINFOHEA
 
 int VFWhandler::VFW_decompress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* output)
 {
+	VFW_CODEC_CRASH_CATCHER_START;
+
 	m_Image.Create(input->biWidth, input->biHeight, 24);
 	//mycodec->Configure(*myconfig);
 	return ICERR_OK;
+	VFW_CODEC_CRASH_CATCHER_END;
 }
 
 /******************************************************************************
@@ -297,3 +407,239 @@ int VFWhandler::VFW_decompress_end(int lParam1, int lParam2)
 	//mycodec.flush();
 	return ICERR_OK;
 }
+
+inline RGBQUAD VFWhandler::AveragePixels(DWORD x, DWORD y) {
+	RGBQUAD previousPixel;
+	WORD avgRed = 255;						
+	WORD avgGreen = 255;						
+	WORD avgBlue = 255;
+	WORD avgCount = 1;						
+	if (x > 0) {
+		previousPixel = m_Image.GetPixelColor(x-1, y);
+		avgRed += previousPixel.rgbRed;
+		avgBlue += previousPixel.rgbBlue;
+		avgGreen += previousPixel.rgbGreen;
+		avgCount++;
+		if (y > 0) {
+			previousPixel = m_Image.GetPixelColor(x-1, y-1);
+			avgRed += previousPixel.rgbRed;
+			avgBlue += previousPixel.rgbBlue;
+			avgGreen += previousPixel.rgbGreen;
+			avgCount++;
+		}
+		if (y < m_Image.GetHeight()) {
+			previousPixel = m_Image.GetPixelColor(x-1, y+1);
+			avgRed += previousPixel.rgbRed;
+			avgBlue += previousPixel.rgbBlue;
+			avgGreen += previousPixel.rgbGreen;
+			avgCount++;
+		}
+	}
+	if (x < m_Image.GetWidth()) {
+		previousPixel = m_Image.GetPixelColor(x+1, y);
+		avgRed += previousPixel.rgbRed;
+		avgBlue += previousPixel.rgbBlue;
+		avgGreen += previousPixel.rgbGreen;
+		avgCount++;
+		if (y > 0) {
+			previousPixel = m_Image.GetPixelColor(x+1, y-1);
+			avgRed += previousPixel.rgbRed;
+			avgBlue += previousPixel.rgbBlue;
+			avgGreen += previousPixel.rgbGreen;
+			avgCount++;
+		}
+		if (y < m_Image.GetHeight()) {
+			previousPixel = m_Image.GetPixelColor(x+1, y+1);
+			avgRed += previousPixel.rgbRed;
+			avgBlue += previousPixel.rgbBlue;
+			avgGreen += previousPixel.rgbGreen;
+			avgCount++;
+		}
+	}
+	if (y > 0) {
+		previousPixel = m_Image.GetPixelColor(x, y-1);
+		avgRed += previousPixel.rgbRed;
+		avgBlue += previousPixel.rgbBlue;
+		avgGreen += previousPixel.rgbGreen;
+		avgCount++;
+	}						
+	if (y < m_Image.GetHeight()) {
+		previousPixel = m_Image.GetPixelColor(x, y+1);
+		avgRed += previousPixel.rgbRed;
+		avgBlue += previousPixel.rgbBlue;
+		avgGreen += previousPixel.rgbGreen;
+		avgCount++;
+	}
+
+	if (x > 1) {
+		previousPixel = m_Image.GetPixelColor(x-2, y);
+		avgRed += previousPixel.rgbRed;
+		avgBlue += previousPixel.rgbBlue;
+		avgGreen += previousPixel.rgbGreen;
+		avgCount++;
+		if (y > 1) {
+			previousPixel = m_Image.GetPixelColor(x-2, y-2);
+			avgRed += previousPixel.rgbRed;
+			avgBlue += previousPixel.rgbBlue;
+			avgGreen += previousPixel.rgbGreen;
+			avgCount++;
+		}
+		if (y < m_Image.GetHeight()-1) {
+			previousPixel = m_Image.GetPixelColor(x-2, y+2);
+			avgRed += previousPixel.rgbRed;
+			avgBlue += previousPixel.rgbBlue;
+			avgGreen += previousPixel.rgbGreen;
+			avgCount++;
+		}
+	}
+	if (x < m_Image.GetWidth()-1) {
+		previousPixel = m_Image.GetPixelColor(x+2, y);
+		avgRed += previousPixel.rgbRed;
+		avgBlue += previousPixel.rgbBlue;
+		avgGreen += previousPixel.rgbGreen;
+		avgCount++;
+		if (y > 1) {
+			previousPixel = m_Image.GetPixelColor(x+2, y-2);
+			avgRed += previousPixel.rgbRed;
+			avgBlue += previousPixel.rgbBlue;
+			avgGreen += previousPixel.rgbGreen;
+			avgCount++;
+		}
+		if (y < m_Image.GetHeight()-1) {
+			previousPixel = m_Image.GetPixelColor(x+2, y+2);
+			avgRed += previousPixel.rgbRed;
+			avgBlue += previousPixel.rgbBlue;
+			avgGreen += previousPixel.rgbGreen;
+			avgCount++;
+		}
+	}
+	if (y > 1) {
+		previousPixel = m_Image.GetPixelColor(x, y-2);
+		avgRed += previousPixel.rgbRed;
+		avgBlue += previousPixel.rgbBlue;
+		avgGreen += previousPixel.rgbGreen;
+		avgCount++;
+	}						
+	if (y < m_Image.GetHeight()-1) {
+		previousPixel = m_Image.GetPixelColor(x, y+2);
+		avgRed += previousPixel.rgbRed;
+		avgBlue += previousPixel.rgbBlue;
+		avgGreen += previousPixel.rgbGreen;
+		avgCount++;
+	}
+	previousPixel.rgbRed = avgRed / avgCount;
+	previousPixel.rgbGreen = avgGreen / avgCount;
+	previousPixel.rgbBlue = avgBlue / avgCount;
+	previousPixel.rgbReserved = 0;	
+
+	return previousPixel;
+};
+
+BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{	
+  switch (uMsg)
+  {
+		case WM_INITDIALOG:
+		{
+			INITCOMMONCONTROLSEX common;			
+			common.dwICC = ICC_UPDOWN_CLASS; 
+			common.dwSize = sizeof(common);
+			InitCommonControlsEx(&common);
+
+			HMODULE myModule = GetModuleHandle("CorePNG_vfw.dll");	
+			HRSRC hres = FindResource(myModule, MAKEINTRESOURCE(IDR_PNG_LOGO), "PNG");
+			HGLOBAL hgImage = LoadResource(myModule, hres);
+			myLogo.Decode((BYTE *)LockResource(hgImage), SizeofResource(myModule, hres), CXIMAGE_FORMAT_PNG);
+
+			CheckDlgButton(hwndDlg, IDC_CHECK_DECODE_RGB24, m_DecodeToRGB24);
+			CheckDlgButton(hwndDlg, IDC_CHECK_DELTA_FRAMES, m_DeltaFramesEnabled);
+			
+			SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_SETRANGE, 0, (LPARAM)MAKELONG(UD_MAXVAL, 0));
+			SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_SETPOS, 0, m_DropFrameThreshold);
+			break;
+		}		
+		case WM_PAINT:
+		{			
+			myLogo.Draw(GetDC(hwndDlg));		
+			break;
+		}
+		case WM_DESTROY:
+		{			
+			myLogo.Destroy();
+			break;
+		}
+		case WM_COMMAND:
+			// Process button
+			switch (LOWORD(wParam))
+			{
+				case IDC_BUTTON_OK:
+					m_DecodeToRGB24 = IsDlgButtonChecked(hwndDlg, IDC_CHECK_DECODE_RGB24);
+					m_DeltaFramesEnabled = IsDlgButtonChecked(hwndDlg, IDC_CHECK_DELTA_FRAMES);
+					m_DropFrameThreshold = SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_GETPOS, 0, 0);
+					
+					SaveSettings();
+
+					EndDialog(hwndDlg, IDOK);
+					break;
+				case IDC_BUTTON_CANCEL:
+					EndDialog(hwndDlg, IDCANCEL);
+					break;
+			}
+			break;
+		default:
+			break;
+			//Nothing for now
+	}
+  return FALSE;
+}
+
+BOOL CALLBACK ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	VFWhandler *vfwData = (VFWhandler *)GetWindowLong(hwndDlg, DWL_USER);	
+  if (uMsg == WM_INITDIALOG) {
+		// Store the VFWhandler
+		vfwData = (VFWhandler *)lParam;
+		SetWindowLong(hwndDlg, DWL_USER, (LONG)vfwData);
+	}
+	if (vfwData != NULL) {
+		return vfwData->ConfigurationDlgProc(hwndDlg, uMsg, wParam, lParam);
+	}
+	return FALSE;
+};
+
+DWORD CorePNG_GetRegistryValue(char *value_key, DWORD default_value)
+{	
+	char *reg_key = "Software\\CorePNG\\";
+	DWORD ret_value = default_value;
+	HKEY key_handle = NULL;
+	DWORD lpType = NULL;
+	DWORD state = 0;
+	DWORD size = sizeof(ret_value);
+
+	RegCreateKeyEx(HKEY_LOCAL_MACHINE, reg_key, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &key_handle, &state);
+	//FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, 0, temp, 0, reg_key, 1024, NULL); 
+	if(state == REG_OPENED_EXISTING_KEY)
+		RegQueryValueEx(key_handle, value_key, 0, &lpType, (BYTE*)&ret_value, &size);	
+	else if (state == REG_CREATED_NEW_KEY)
+		//We write the default value
+		RegSetValueEx(key_handle, value_key, 0, REG_DWORD, (CONST BYTE*)&ret_value, size);
+
+	RegCloseKey(key_handle);
+	return ret_value;
+}
+
+void CorePNG_SetRegistryValue(char *value_key, DWORD the_value)
+{
+	char *reg_key = "SOFTWARE\\CorePNG\\";
+	HKEY key_handle = NULL;
+	DWORD state = 0;
+	SECURITY_ATTRIBUTES sa = {sizeof(sa), 0,1};
+
+	RegCreateKeyEx(HKEY_LOCAL_MACHINE, reg_key, 0, "", 0, KEY_WRITE, &sa, &key_handle, &state);
+
+	DWORD size = sizeof(the_value);
+	RegSetValueEx(key_handle, value_key, 0, REG_DWORD, (CONST BYTE*)&the_value, size);
+	//char *err_key = new char[1024];
+	//FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, 0, temp, 0, err_key, 1024, NULL); 
+	RegCloseKey(key_handle);
+};

@@ -54,8 +54,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,3,1,1
- PRODUCTVERSION 0,3,1,1
+ FILEVERSION 0,4,1,1
+ PRODUCTVERSION 0,4,1,1
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -73,14 +73,14 @@ BEGIN
             VALUE "Comments", "http://corecodec.org/projects/vfre/\0"
             VALUE "CompanyName", "\0"
             VALUE "FileDescription", "CorePNG VFW Codec\0"
-            VALUE "FileVersion", "0, 3, 1, 1\0"
+            VALUE "FileVersion", "0, 4, 1, 1\0"
             VALUE "InternalName", "CorePNG\0"
             VALUE "LegalCopyright", "Copyright © 2003 Jory Stone\0"
             VALUE "LegalTrademarks", "\0"
             VALUE "OriginalFilename", "CorePNG_vfw.rc\0"
             VALUE "PrivateBuild", "\0"
             VALUE "ProductName", "CorePNG VFW Codec\0"
-            VALUE "ProductVersion", "0, 3, 1, 1\0"
+            VALUE "ProductVersion", "0, 4, 1, 1\0"
             VALUE "SpecialBuild", "\0"
         END
     END
@@ -92,6 +92,60 @@ END
 
 #endif    // !_MAC
 
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_PROPPAGE_CONFIG DIALOG DISCARDABLE  0, 0, 220, 137
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | 
+    WS_SYSMENU
+CAPTION "CorePNG VFW Codec Settings"
+FONT 8, "MS Sans Serif"
+BEGIN
+    PUSHBUTTON      "OK",IDC_BUTTON_OK,111,120,50,14
+    PUSHBUTTON      "Cancel",IDC_BUTTON_CANCEL,166,120,50,14
+    GROUPBOX        "",IDC_STATIC,2,47,214,69
+    CONTROL         "Always decode to RGB24",IDC_CHECK_DECODE_RGB24,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,8,56,97,10
+    CONTROL         "Enable Delta-Frames (subject to change format)",
+                    IDC_CHECK_DELTA_FRAMES,"Button",BS_AUTOCHECKBOX | 
+                    WS_TABSTOP,8,68,164,10
+    LTEXT           "Drop Frame Threshold",IDC_STATIC,8,88,76,8
+    EDITTEXT        IDC_EDIT_DROP_THRESHOLD,8,97,40,14,ES_AUTOHSCROLL | 
+                    ES_NUMBER
+    CONTROL         "Spin1",IDC_SPIN_DROP_THRESHOLD,"msctls_updown32",
+                    UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | 
+                    UDS_ARROWKEYS,48,96,9,14
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO DISCARDABLE 
+BEGIN
+    IDD_PROPPAGE_CONFIG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 213
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 130
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// PNG
+//
+
+IDR_PNG_LOGO            PNG     DISCARDABLE     "..\\logo.png"
 #endif    // English (U.S.) resources
 /////////////////////////////////////////////////////////////////////////////
 

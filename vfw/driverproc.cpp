@@ -107,7 +107,7 @@ extern "C" __declspec(dllexport) LRESULT WINAPI DriverProc(DWORD dwDriverId, HDR
 			icinfo->dwVersionICM = ICVERSION;
 			
 			wcscpy(icinfo->szName, L"CorePNG"); 
-			wcscpy(icinfo->szDescription, L"CorePNG Video Codec");
+			wcscpy(icinfo->szDescription, L"CorePNG Video Codec v0.4");
 						
 			return lParam2;
 		}
@@ -118,15 +118,14 @@ extern "C" __declspec(dllexport) LRESULT WINAPI DriverProc(DWORD dwDriverId, HDR
 	// configure box, so just return ok.
 	case ICM_ABOUT :
 		if (lParam1 != -1) {
-			MessageBox(GetTopWindow(NULL), "CorePNG was developed by Jory Stone <vbman@toughguy.net>\nAs a test codec for image subtitles. But as it can be used for other things.", "About CorePNG", MB_ICONINFORMATION);
+			MessageBox((HWND)lParam1, "CorePNG was developed by Jory Stone <vbman@toughguy.net>\nAs a test codec for image subtitles. But as it can be used for other things.", "About CorePNG", MB_ICONINFORMATION);
 		}
 		return ICERR_OK;
 	case ICM_CONFIGURE :
-		return ICERR_UNSUPPORTED;
-		/*if (lParam1 != -1) {
-			handler->VFW_configure();
+		if (lParam1 != -1) {
+			handler->VFW_configure((HWND)lParam1);
 		}
-		return ICERR_OK;*/
+		return ICERR_OK;
 			
 	// This is used to get the configuration of the codec and store it.
 	// If the first parameter is NULL, it needs to return the size
