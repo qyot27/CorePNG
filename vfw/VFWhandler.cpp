@@ -1002,11 +1002,15 @@ int VFWhandler::VFW_decompress_query(BITMAPINFOHEADER* input, BITMAPINFOHEADER* 
 					return ICERR_BADFORMAT;
 				}
 			} else if (type == PNGFrameType_YUY2) {
-				if (output->biCompression != FOURCC_YUY2)
+				if (output->biCompression != FOURCC_YUY2) {
+					output->biCompression = FOURCC_YUY2;
 					return ICERR_BADFORMAT;
+				}
 			} else if (type == PNGFrameType_YV12) {
-				if (output->biCompression != FOURCC_YV12)
+				if (output->biCompression != FOURCC_YV12) {
+					output->biCompression = FOURCC_YV12;
 					return ICERR_BADFORMAT;
+				}
 			} else {
 				// Not RGB or YUV
 				return ICERR_BADFORMAT;
