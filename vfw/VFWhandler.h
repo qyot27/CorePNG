@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------------------
 // CorePNG VFW Codec
-// http://corecodec.org/projects/coreflac
+// http://corecodec.org/projects/corepng
 //
 // Copyright (C) 2003 Jory Stone
 // based on WARP VFW interface by General Lee D. Mented (gldm@mail.com)
@@ -81,8 +81,8 @@ void _stdcall RGBtoYUV422_SSE2(void* lpIn,void* lpOut,DWORD dwFlags,DWORD dwWidt
 #define INLINE inline
 #endif
 
-#define COREPNG_VFW_VERSION "CorePNG VFW Codec v0.7"
-#define COREPNG_VFW_VERSIONW L"CorePNG VFW Codec v0.7"
+#define COREPNG_VFW_VERSION "CorePNG VFW Codec v0.8"
+#define COREPNG_VFW_VERSIONW L"CorePNG VFW Codec v0.8"
 
 #ifndef _DEBUG
 #define VFW_CODEC_CRASH_CATCHER_START \
@@ -177,6 +177,7 @@ struct CorePNGCodecSettings {
 	BYTE m_DeltaFrameAuto;
 	WORD m_DeltaFrameLimit;
 	BYTE m_EnableMultiThreading;
+	BYTE m_EnableStatusDialog;
 };
 
 // wrapper for whatever critical section we have
@@ -274,6 +275,7 @@ public:
 	// Dialogbox callbacks
 	BOOL ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	BOOL AboutDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	BOOL StatusDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	
 	INLINE int CompressDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2);
 protected:
@@ -298,6 +300,8 @@ protected:
 
 	CorePNGCodecPrivate m_CodecPrivate;
 
+	// Encoding mode
+	DWORD m_Input_Mode;
 	DWORD m_BufferSize;
 	CxImage myLogo;
 	CxImagePNG m_Image;
@@ -323,10 +327,19 @@ protected:
 	CxImagePNG U_Channel_Delta;		
 	CxImagePNG V_Channel_Delta;
 	DeltaThreadInfo *m_threadInfo;
+
+	// Cpu infomation object
+	CPUInfo m_cpu;
+
+	// Handle to the status dialog
+	HWND m_hwndStatusDialog;
+	DWORD m_TotalKeyframes;
+	DWORD m_TotalDeltaframes;
 };
 
 BOOL CALLBACK ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 BOOL CALLBACK AboutDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+BOOL CALLBACK StatusDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 WORD AddTooltip(HWND hwndTooltip, HWND hwndClient, LPSTR strText);
 

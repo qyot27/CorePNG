@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------------------
 // CorePNG VFW Codec
-// http://corecodec.org/projects/coreflac
+// http://corecodec.org/projects/corepng
 //
 // Copyright (C) 2003 Jory Stone
 // based on WARP VFW interface by General Lee D. Mented (gldm@mail.com)
@@ -21,6 +21,429 @@
 #include "VFWhandler.h"
 
 extern HINSTANCE g_hInst;
+
+
+VFWhandler::VFWhandler(void)
+{
+	ODS("VFWhandler::VFWhandler()");
+	
+	// Load defaults from reg
+	LoadSettings();
+	
+	m_TotalKeyframes = 0;
+	m_TotalDeltaframes = 0;
+	m_hwndStatusDialog = NULL;
+	m_BufferSize = 0;
+	m_DeltaFrameCount = 0;
+	m_Output_Mode = PNGOutputMode_None;
+	m_threadInfo = NULL;	
+	m_MemoryBuffer.Open();
+}
+
+VFWhandler::~VFWhandler(void)
+{
+	ODS("VFWhandler::~VFWhandler()");
+
+}
+
+void VFWhandler::LoadSettings() {	
+	m_ZlibCompressionLevel = CorePNG_GetRegistryValue("zlib Compression Level", 6);
+	m_PNGFilters = CorePNG_GetRegistryValue("PNG Filters", PNG_ALL_FILTERS);
+	m_DeltaFramesEnabled = CorePNG_GetRegistryValue("Use Delta Frames", 0);
+	m_DeltaFrameAuto = CorePNG_GetRegistryValue("Auto Delta Frames", 0);
+	m_DeltaFrameLimit = CorePNG_GetRegistryValue("Keyframe Interval", 30);
+	m_DropFrameThreshold = CorePNG_GetRegistryValue("Drop Frame Threshold", 0);
+	m_DecodeToRGB24 = CorePNG_GetRegistryValue("Always Decode to RGB24", 0);
+	m_EnableMultiThreading = CorePNG_GetRegistryValue("Multi-threading", 0);
+	m_EnableStatusDialog = CorePNG_GetRegistryValue("Status Dialog", 0);
+}
+
+void VFWhandler::SaveSettings() {	
+	CorePNG_SetRegistryValue("zlib Compression Level", m_ZlibCompressionLevel);
+	CorePNG_SetRegistryValue("PNG Filters", m_PNGFilters);
+	CorePNG_SetRegistryValue("Use Delta Frames", m_DeltaFramesEnabled);
+	CorePNG_SetRegistryValue("Auto Delta Frames", m_DeltaFrameAuto);
+	CorePNG_SetRegistryValue("Keyframe Interval", m_DeltaFrameLimit);	
+	CorePNG_SetRegistryValue("Drop Frame Threshold", m_DropFrameThreshold);
+	CorePNG_SetRegistryValue("Always Decode to RGB24", m_DecodeToRGB24);
+	CorePNG_SetRegistryValue("Multi-threading", m_EnableMultiThreading);
+	CorePNG_SetRegistryValue("Status Dialog", m_EnableStatusDialog);
+}
+
+void VFWhandler::VFW_about(HWND hParentWindow)
+{
+	ODS("VFWhandler::VFW_about()");
+	DialogBoxParam(g_hInst, MAKEINTRESOURCE(IDD_DIALOG_ABOUT), hParentWindow, ::AboutDlgProc, (LPARAM)this);		
+}
+
+/******************************************************************************
+* VFW_Configure();
+*
+* This basicly pops up the dialog box to configure codec settings. It will
+* store the settings in the WARPconfig myconfig (see below) and then
+* pass them to the codec during VFW_compress_begin.
+*
+******************************************************************************/
+
+void VFWhandler::VFW_configure(HWND hParentWindow)
+{
+	ODS("VFWhandler::VFW_configure()");
+	DialogBoxParam(g_hInst, MAKEINTRESOURCE(IDD_PROPPAGE_CONFIG), hParentWindow, ::ConfigurationDlgProc, (LPARAM)this);			
+}
+
+/******************************************************************************
+* VFW_compress(ICCOMPRESS* lParam1, DWORD lParam2);
+*
+* This function is used to compress individual frames during compression.
+*
+******************************************************************************/
+
+int VFWhandler::VFW_compress(ICCOMPRESS* lParam1, DWORD lParam2)
+{
+	ODS("VFWhandler::VFW_compress()");
+	VFW_CODEC_CRASH_CATCHER_START;
+	
+	if (!m_DeltaFrameCount) {
+		// Now compress the frame.
+		if (CompressKeyFrame(lParam1, lParam2) != ICERR_OK)
+			return ICERR_ERROR;
+
+	} else {
+		// We compress a delta frame
+		if (!m_DeltaFrameAuto) {
+			// Every frame is a delta
+			if (CompressDeltaFrame(lParam1, lParam2) != ICERR_OK)
+				return ICERR_ERROR;
+		} else {
+			// Use an Auto setting
+			if (CompressDeltaFrameAuto(lParam1, lParam2) != ICERR_OK)
+				return ICERR_ERROR;
+		}
+	}
+	return ICERR_OK;
+
+	VFW_CODEC_CRASH_CATCHER_END;
+}
+
+int VFWhandler::CompressKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2) 
+{
+	DWORD lActual = lParam1->lpbiInput->biSizeImage;
+	
+	// Increase the keyframe count
+	m_TotalKeyframes++;
+
+	if (lParam1->lpbiInput->biBitCount == 24) {
+		if (m_DropFrameThreshold != 0) {
+			DWORD imageDiff = abs(memcmp(m_Image.GetBits(), lParam1->lpInput, lActual));
+			if (imageDiff < m_DropFrameThreshold) {
+				// Drop this frame
+				lActual = 0;
+				// Drop a frame	
+				lParam1->lpbiOutput->biSizeImage = 0;
+				lParam1->dwFlags = 0;
+				*lParam1->lpdwFlags = 0;
+				return ICERR_OK;
+			}
+		}
+		memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
+		if (m_DeltaFramesEnabled) {
+			CopyImageBits(m_DeltaFrame, m_Image);
+			m_DeltaFrameCount++;
+		}
+#ifdef QUADRANT_SCAN_TEST
+		int dummy = 0;
+		int **scantable = NULL;
+		scantable = new int*[1024+1];
+		memset(scantable, 0, sizeof(int)*1024);
+		for (DWORD h = 0; h < 1024; h++) {
+			scantable[h] = new int[1024+1];
+			memset(scantable[h], 0, sizeof(int)*1024);
+		}
+		for (DWORD h = 0; h < m_Image.GetHeight(); h++) {
+			for (DWORD w = 0; w < m_Image.GetWidth(); w++) {
+				scantable[w][h] = 1;
+			}
+		}
+		QuadrantScan(scantable, 0, 0, 1024, 1024, 1024, dummy);
+		{
+			CxIOFile textFile;
+			char txt_buffer[1024];
+			textFile.Open("D:\\test.txt", "w");
+			for (DWORD h = 0; h < 1024; h++) {
+				for (DWORD w = 0; w < 1024; w++) {
+					wsprintf(txt_buffer, "%i ", scantable[w][h]);
+					textFile.Write(txt_buffer, lstrlen(txt_buffer), 1);
+				}
+				textFile.Write("\n", 1, 1);
+			}
+		}
+		CxImagePNG scanImage = m_Image;
+		for (DWORD y1 = 0; y1 < m_Image.GetHeight(); y1++) {
+			for (DWORD x1 = 0; x1 < m_Image.GetWidth(); x1++) {
+				int x2, y2 = 0;
+				if (scantable[x1][y1] > m_Image.GetWidth()) {
+					y2 = scantable[x1][y1] / m_Image.GetWidth();
+				} else {
+					y2 = 0;
+				}
+				x2 =  scantable[x1][y1] - y2 * m_Image.GetWidth();
+				m_Image.SetPixelColor(x2, y2, scanImage.GetPixelColor(x1, y1));
+			}
+		}
+		// Recreate the image
+		for (DWORD y1 = 0; y1 < m_Image.GetHeight(); y1++) {
+			for (DWORD x1 = 0; x1 < m_Image.GetWidth(); x1++) {
+				int x2, y2 = 0;
+				if (scantable[x1][y1] > m_Image.GetWidth()) {
+					y2 = scantable[x1][y1] / m_Image.GetWidth();
+				} else {
+					y2 = 0;
+				}
+				x2 =  scantable[x1][y1] - y2 * m_Image.GetWidth();
+				scanImage.SetPixelColor(x1, y1, m_Image.GetPixelColor(x2, y2));				
+				
+			}
+		}
+		m_Image.Draw(GetDC(NULL));
+		scanImage.Draw(GetDC(NULL));
+		
+		m_Image.SetCompressionFilters(m_PNGFilters);
+		m_Image.SetCompressionLevel(m_ZlibCompressionLevel);
+		scanImage.SetCompressionFilters(m_PNGFilters);
+		scanImage.SetCompressionLevel(m_ZlibCompressionLevel);
+		scanImage.RotateLeft();
+		m_Image.RotateLeft();
+		m_Image.Save("D:\\kim_quadrant.png", CXIMAGE_FORMAT_PNG);
+		scanImage.Save("D:\\kim_orig.png", CXIMAGE_FORMAT_PNG);		
+#endif
+
+		// Encode 24-bit
+		if (lParam1->lpOutput != NULL) {
+			// Write directly to the VFW buffer
+			CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
+			m_Image.Encode(&memFile);	
+			//m_Image.Draw(GetDC(NULL));
+
+			lActual = memFile.Tell();	
+		} else {
+			// Write to our tempory memory buffer instead
+			m_MemoryBuffer.Seek(0, 0);
+			m_Image.Encode(&m_MemoryBuffer);	
+			//m_Image.Draw(GetDC(NULL));
+
+			lActual = m_MemoryBuffer.Tell();	
+		}
+	} else if (lParam1->lpbiInput->biBitCount == 32) {
+		m_Image.CreateFromARGB(lParam1->lpbiInput->biWidth, lParam1->lpbiInput->biHeight, (BYTE *)lParam1->lpInput);
+		m_Image.Flip();
+
+		// Encode 32-bit
+		if (lParam1->lpOutput != NULL) {
+			// Write directly to the VFW buffer
+			CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
+			m_Image.Encode(&memFile);	
+			//m_Image.Draw(GetDC(NULL));
+
+			lActual = memFile.Tell();	
+		} else {
+			// Write to our tempory memory buffer instead
+			m_MemoryBuffer.Seek(0, 0);
+			m_Image.Encode(&m_MemoryBuffer);	
+			//m_Image.Draw(GetDC(NULL));
+
+			lActual = m_MemoryBuffer.Tell();	
+		}
+	} else if ((lParam1->lpbiInput->biCompression == FOURCC_YUY2 || lParam1->lpbiInput->biCompression == FOURCC_YUYV)&& lParam1->lpbiInput->biBitCount == 16) {
+		if (lParam1->lpOutput != NULL) {
+			// Write directly to the VFW buffer
+			CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);			
+			CompressYUY2KeyFrame((BYTE *)lParam1->lpInput, &memFile);	
+			lActual = memFile.Tell();	
+		} else {
+			// Write to our tempory memory buffer instead
+			m_MemoryBuffer.Seek(0, 0);			
+			CompressYUY2KeyFrame((BYTE *)lParam1->lpInput, &m_MemoryBuffer);
+			lActual = m_MemoryBuffer.Tell();	
+		}			
+	} else if (lParam1->lpbiInput->biCompression == FOURCC_YV12 && lParam1->lpbiInput->biBitCount == 12) {
+		if (lParam1->lpOutput != NULL) {
+			// Write directly to the VFW buffer
+			CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);			
+			CompressYV12KeyFrame((BYTE *)lParam1->lpInput, &memFile);	
+			lActual = memFile.Tell();	
+		} else {
+			// Write to our tempory memory buffer instead
+			m_MemoryBuffer.Seek(0, 0);			
+			CompressYV12KeyFrame((BYTE *)lParam1->lpInput, &m_MemoryBuffer);
+			lActual = m_MemoryBuffer.Tell();	
+		}	
+	}
+
+	// Now put the result back	
+	lParam1->lpbiOutput->biSizeImage = lActual;
+	lParam1->dwFlags = ICCOMPRESS_KEYFRAME;
+	*lParam1->lpdwFlags = AVIIF_KEYFRAME;	
+
+	return ICERR_OK;
+};
+
+int VFWhandler::CompressDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2)
+{
+	DWORD lActual = lParam1->lpbiInput->biSizeImage;
+	
+	// Increase the delta-frame count
+	m_TotalDeltaframes++;
+
+	if (lParam1->lpbiInput->biBitCount == 24) {
+		if (m_DropFrameThreshold != 0) {
+			DWORD imageDiff = abs(memcmp(m_DeltaFrame.GetBits(), lParam1->lpInput, lActual));
+			if (imageDiff < m_DropFrameThreshold) {
+				// Drop this frame
+				if (lParam2 == 1) {
+					// Multi-thread call
+					lParam1->dwFrameSize = 0;
+				} else {
+					lParam1->lpbiOutput->biSizeImage = 0;
+				}
+				lParam1->dwFlags = 0;
+				*lParam1->lpdwFlags = 0;					
+				// Increase the delta-frame count even though we drop this frame,
+				// or else we could have long time periods without keyframes
+				m_DeltaFrameCount++;
+
+				return ICERR_OK;
+			}
+		}
+		memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
+
+		// Compare to the previous frame
+		m_Image.Mix(m_DeltaFrame, CxImage::ImageOpType::OpSub2);
+
+		// Replace the delta frame with the full frame
+		memcpy(m_DeltaFrame.GetBits(), lParam1->lpInput, lActual);
+		if (m_DeltaFrameCount++ > m_DeltaFrameLimit)
+			m_DeltaFrameCount = 0;
+
+		// Actually encode the frame
+		CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
+		m_Image.Encode(&memFile);	
+		//m_Image.Draw(GetDC(NULL));
+		lActual = memFile.Tell();	
+
+	} else if (lParam1->lpbiInput->biBitCount == 32) {
+		if (m_DropFrameThreshold != 0) {
+			DWORD imageDiff = abs(memcmp(m_DeltaFrame.GetBits(), lParam1->lpInput, lActual));
+			if (imageDiff < m_DropFrameThreshold) {
+				// Drop this frame
+				if (lParam2 == 1) {
+					// Multi-thread call
+					lParam1->dwFrameSize = 0;
+				} else {
+					lParam1->lpbiOutput->biSizeImage = 0;
+				}
+				lParam1->dwFlags = 0;
+				*lParam1->lpdwFlags = 0;	
+				// Increase the delta-frame count even though we drop this frame
+				m_DeltaFrameCount++;
+
+				return ICERR_OK;
+			}
+		}
+		m_Image.CreateFromARGB(lParam1->lpbiInput->biWidth, lParam1->lpbiInput->biHeight, (BYTE *)lParam1->lpInput);
+
+		// Compare to the previous frame
+		m_Image.Mix(m_DeltaFrame, CxImage::ImageOpType::OpSub2);
+
+		// Replace the delta frame with the full frame
+		memcpy(m_DeltaFrame.GetBits(), lParam1->lpInput, lActual);
+		if (m_DeltaFrameCount++ > m_DeltaFrameLimit)
+			m_DeltaFrameCount = 0;
+
+		// Actually encode the frame
+		CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
+		m_Image.Encode(&memFile);	
+		//m_Image.Draw(GetDC(NULL));
+		lActual = memFile.Tell();	
+
+	} else if ((lParam1->lpbiInput->biCompression == FOURCC_YUY2 || lParam1->lpbiInput->biCompression == FOURCC_YUYV)&& lParam1->lpbiInput->biBitCount == 16) {
+		// Encode a YUV2 frame
+		CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);			
+		CompressYUY2DeltaFrame((BYTE *)lParam1->lpInput, &memFile);	
+		lActual = memFile.Tell();	
+	
+	} else if (lParam1->lpbiInput->biCompression == FOURCC_YV12 && lParam1->lpbiInput->biBitCount == 12) {
+		// Encode a YUV2 frame
+		CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);			
+		CompressYV12DeltaFrame((BYTE *)lParam1->lpInput, &memFile);	
+		lActual = memFile.Tell();	
+	}	
+
+	// Now put the result back	
+	if (lParam2 == 1) {
+		// Multi-thread call
+		lParam1->dwFrameSize = lActual;
+	} else {
+		lParam1->lpbiOutput->biSizeImage = lActual;
+	}
+	lParam1->dwFlags = 0;
+	*lParam1->lpdwFlags = 0;	
+
+	return ICERR_OK;
+};
+
+int VFWhandler::CompressDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2)
+{
+	void* VFW_Buffer = NULL;
+	DWORD DeltaFrameSize = -1;
+	DWORD KeyFrameSize = -1;
+	if (m_EnableMultiThreading) {				
+		memcpy(&m_threadInfo->frameData, lParam1, sizeof(ICCOMPRESS));
+		if (m_threadInfo->frameData.lFrameNum == -1)
+			m_threadInfo->frameData.lFrameNum == 0;
+		LeaveCriticalSection(&m_threadInfo->csFrameData);
+	} else {
+		if (CompressDeltaFrame(lParam1, lParam2) == ICERR_OK) {
+			DeltaFrameSize = lParam1->lpbiOutput->biSizeImage;		
+		} else {
+			return CompressKeyFrame(lParam1, lParam2);
+		}
+	}
+
+	VFW_Buffer = lParam1->lpOutput;
+	lParam1->lpOutput = NULL;
+	if (CompressKeyFrame(lParam1, lParam2) == ICERR_OK) {
+		// Restore the origanl VW buffer
+		lParam1->lpOutput = VFW_Buffer;
+		KeyFrameSize = lParam1->lpbiOutput->biSizeImage;
+		
+		if (m_EnableMultiThreading) {
+			// Ok, wait till the other thread is done compressing
+			EnterCriticalSection(&m_threadInfo->csFrameData);
+			DeltaFrameSize = m_threadInfo->DeltaFrameSize;
+			m_threadInfo->DeltaFrameSize = -1;			
+		}
+
+		if (KeyFrameSize < DeltaFrameSize) {
+			// Keyframe is smaller than a delta frame
+			m_TotalDeltaframes--;
+			// Replace the delta frame data in the VFW buffer with ours
+			memcpy(lParam1->lpOutput, m_MemoryBuffer.GetBuffer(), KeyFrameSize);
+			// Reset the delta frame count
+			m_DeltaFrameCount = 0;
+		} else {
+			// Delta frame gets better compression
+			m_TotalKeyframes--;
+			// Restore the size (the VFW buffer already has the delta frame data)
+			lParam1->lpbiOutput->biSizeImage = DeltaFrameSize;			
+			// Set the delta frame flags
+			lParam1->dwFlags = 0;
+			*lParam1->lpdwFlags = 0;	
+		}
+	}
+
+
+	return ICERR_OK;
+};
 
 bool VFWhandler::CreateYUY2(BITMAPINFOHEADER* input)
 {
@@ -208,415 +631,6 @@ void VFWhandler::CompressYV12DeltaFrame(BYTE *inputYUV2Data, CxMemFile *targetBu
 	U_Channel.Encode(targetBuffer);		
 };
 
-VFWhandler::VFWhandler(void)
-{
-	ODS("VFWhandler::VFWhandler()");
-	
-	// Load defaults from reg
-	LoadSettings();
-	
-	m_BufferSize = 0;
-	m_DeltaFrameCount = 0;
-	m_Output_Mode = PNGOutputMode_None;
-	m_threadInfo = NULL;	
-	m_MemoryBuffer.Open();
-}
-
-VFWhandler::~VFWhandler(void)
-{
-	ODS("VFWhandler::~VFWhandler()");
-
-}
-
-void VFWhandler::LoadSettings() {	
-	m_ZlibCompressionLevel = CorePNG_GetRegistryValue("zlib Compression Level", 6);
-	m_PNGFilters = CorePNG_GetRegistryValue("PNG Filters", PNG_ALL_FILTERS);
-	m_DeltaFramesEnabled = CorePNG_GetRegistryValue("Use Delta Frames", 0);
-	m_DeltaFrameAuto = CorePNG_GetRegistryValue("Auto Delta Frames", 0);
-	m_DeltaFrameLimit = CorePNG_GetRegistryValue("Keyframe Interval", 30);
-	m_DropFrameThreshold = CorePNG_GetRegistryValue("Drop Frame Threshold", 0);
-	m_DecodeToRGB24 = CorePNG_GetRegistryValue("Always Decode to RGB24", 0);
-	m_EnableMultiThreading  = CorePNG_GetRegistryValue("Multi-threading", 0);
-}
-
-void VFWhandler::SaveSettings() {	
-	CorePNG_SetRegistryValue("zlib Compression Level", m_ZlibCompressionLevel);
-	CorePNG_SetRegistryValue("PNG Filters", m_PNGFilters);
-	CorePNG_SetRegistryValue("Use Delta Frames", m_DeltaFramesEnabled);
-	CorePNG_SetRegistryValue("Auto Delta Frames", m_DeltaFrameAuto);
-	CorePNG_SetRegistryValue("Keyframe Interval", m_DeltaFrameLimit);	
-	CorePNG_SetRegistryValue("Drop Frame Threshold", m_DropFrameThreshold);
-	CorePNG_SetRegistryValue("Always Decode to RGB24", m_DecodeToRGB24);
-	CorePNG_SetRegistryValue("Multi-threading", m_EnableMultiThreading);
-}
-
-void VFWhandler::VFW_about(HWND hParentWindow)
-{
-	ODS("VFWhandler::VFW_about()");
-	DialogBoxParam(g_hInst, MAKEINTRESOURCE(IDD_DIALOG_ABOUT), hParentWindow, ::AboutDlgProc, (LPARAM)this);		
-}
-
-/******************************************************************************
-* VFW_Configure();
-*
-* This basicly pops up the dialog box to configure codec settings. It will
-* store the settings in the WARPconfig myconfig (see below) and then
-* pass them to the codec during VFW_compress_begin.
-*
-******************************************************************************/
-
-void VFWhandler::VFW_configure(HWND hParentWindow)
-{
-	ODS("VFWhandler::VFW_configure()");
-	DialogBoxParam(g_hInst, MAKEINTRESOURCE(IDD_PROPPAGE_CONFIG), hParentWindow, ::ConfigurationDlgProc, (LPARAM)this);			
-}
-
-/******************************************************************************
-* VFW_compress(ICCOMPRESS* lParam1, DWORD lParam2);
-*
-* This function is used to compress individual frames during compression.
-*
-******************************************************************************/
-
-int VFWhandler::VFW_compress(ICCOMPRESS* lParam1, DWORD lParam2)
-{
-	ODS("VFWhandler::VFW_compress()");
-	VFW_CODEC_CRASH_CATCHER_START;
-	
-	if (!m_DeltaFrameCount) {
-		// Now compress the frame.
-		if (CompressKeyFrame(lParam1, lParam2) != ICERR_OK)
-			return ICERR_ERROR;
-
-	} else {
-		// We compress a delta frame
-		if (!m_DeltaFrameAuto) {
-			// Every frame is a delta
-			if (CompressDeltaFrame(lParam1, lParam2) != ICERR_OK)
-				return ICERR_ERROR;
-		} else {
-			// Use an Auto setting
-			if (CompressDeltaFrameAuto(lParam1, lParam2) != ICERR_OK)
-				return ICERR_ERROR;
-		}
-	}
-	return ICERR_OK;
-
-	VFW_CODEC_CRASH_CATCHER_END;
-}
-
-int VFWhandler::CompressKeyFrame(ICCOMPRESS* lParam1, DWORD lParam2) 
-{
-	DWORD lActual = lParam1->lpbiInput->biSizeImage;
-		
-	if (lParam1->lpbiInput->biBitCount == 24) {
-		if (m_DropFrameThreshold != 0) {
-			DWORD imageDiff = abs(memcmp(m_Image.GetBits(), lParam1->lpInput, lActual));
-			if (imageDiff < m_DropFrameThreshold) {
-				// Drop this frame
-				lActual = 0;
-				// Drop a frame	
-				lParam1->lpbiOutput->biSizeImage = 0;
-				lParam1->dwFlags = 0;
-				*lParam1->lpdwFlags = 0;
-				return ICERR_OK;
-			}
-		}
-		memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
-		if (m_DeltaFramesEnabled) {
-			CopyImageBits(m_DeltaFrame, m_Image);
-			m_DeltaFrameCount++;
-		}
-#ifdef QUADRANT_SCAN_TEST
-		int dummy = 0;
-		int **scantable = NULL;
-		scantable = new int*[1024+1];
-		memset(scantable, 0, sizeof(int)*1024);
-		for (DWORD h = 0; h < 1024; h++) {
-			scantable[h] = new int[1024+1];
-			memset(scantable[h], 0, sizeof(int)*1024);
-		}
-		for (DWORD h = 0; h < m_Image.GetHeight(); h++) {
-			for (DWORD w = 0; w < m_Image.GetWidth(); w++) {
-				scantable[w][h] = 1;
-			}
-		}
-		QuadrantScan(scantable, 0, 0, 1024, 1024, 1024, dummy);
-		{
-			CxIOFile textFile;
-			char txt_buffer[1024];
-			textFile.Open("D:\\test.txt", "w");
-			for (DWORD h = 0; h < 1024; h++) {
-				for (DWORD w = 0; w < 1024; w++) {
-					wsprintf(txt_buffer, "%i ", scantable[w][h]);
-					textFile.Write(txt_buffer, lstrlen(txt_buffer), 1);
-				}
-				textFile.Write("\n", 1, 1);
-			}
-		}
-		CxImagePNG scanImage = m_Image;
-		for (DWORD y1 = 0; y1 < m_Image.GetHeight(); y1++) {
-			for (DWORD x1 = 0; x1 < m_Image.GetWidth(); x1++) {
-				int x2, y2 = 0;
-				if (scantable[x1][y1] > m_Image.GetWidth()) {
-					y2 = scantable[x1][y1] / m_Image.GetWidth();
-				} else {
-					y2 = 0;
-				}
-				x2 =  scantable[x1][y1] - y2 * m_Image.GetWidth();
-				m_Image.SetPixelColor(x2, y2, scanImage.GetPixelColor(x1, y1));
-			}
-		}
-		// Recreate the image
-		for (DWORD y1 = 0; y1 < m_Image.GetHeight(); y1++) {
-			for (DWORD x1 = 0; x1 < m_Image.GetWidth(); x1++) {
-				int x2, y2 = 0;
-				if (scantable[x1][y1] > m_Image.GetWidth()) {
-					y2 = scantable[x1][y1] / m_Image.GetWidth();
-				} else {
-					y2 = 0;
-				}
-				x2 =  scantable[x1][y1] - y2 * m_Image.GetWidth();
-				scanImage.SetPixelColor(x1, y1, m_Image.GetPixelColor(x2, y2));				
-				
-			}
-		}
-		m_Image.Draw(GetDC(NULL));
-		scanImage.Draw(GetDC(NULL));
-		
-		m_Image.SetCompressionFilters(m_PNGFilters);
-		m_Image.SetCompressionLevel(m_ZlibCompressionLevel);
-		scanImage.SetCompressionFilters(m_PNGFilters);
-		scanImage.SetCompressionLevel(m_ZlibCompressionLevel);
-		scanImage.RotateLeft();
-		m_Image.RotateLeft();
-		m_Image.Save("D:\\kim_quadrant.png", CXIMAGE_FORMAT_PNG);
-		scanImage.Save("D:\\kim_orig.png", CXIMAGE_FORMAT_PNG);		
-#endif
-
-		// Encode 24-bit
-		if (lParam1->lpOutput != NULL) {
-			// Write directly to the VFW buffer
-			CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
-			m_Image.Encode(&memFile);	
-			//m_Image.Draw(GetDC(NULL));
-
-			lActual = memFile.Tell();	
-		} else {
-			// Write to our tempory memory buffer instead
-			m_MemoryBuffer.Seek(0, 0);
-			m_Image.Encode(&m_MemoryBuffer);	
-			//m_Image.Draw(GetDC(NULL));
-
-			lActual = m_MemoryBuffer.Tell();	
-		}
-	} else if (lParam1->lpbiInput->biBitCount == 32) {
-		m_Image.CreateFromARGB(lParam1->lpbiInput->biWidth, lParam1->lpbiInput->biHeight, (BYTE *)lParam1->lpInput);
-		m_Image.Flip();
-
-		// Encode 32-bit
-		if (lParam1->lpOutput != NULL) {
-			// Write directly to the VFW buffer
-			CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
-			m_Image.Encode(&memFile);	
-			//m_Image.Draw(GetDC(NULL));
-
-			lActual = memFile.Tell();	
-		} else {
-			// Write to our tempory memory buffer instead
-			m_MemoryBuffer.Seek(0, 0);
-			m_Image.Encode(&m_MemoryBuffer);	
-			//m_Image.Draw(GetDC(NULL));
-
-			lActual = m_MemoryBuffer.Tell();	
-		}
-	} else if ((lParam1->lpbiInput->biCompression == FOURCC_YUY2 || lParam1->lpbiInput->biCompression == FOURCC_YUYV)&& lParam1->lpbiInput->biBitCount == 16) {
-		if (lParam1->lpOutput != NULL) {
-			// Write directly to the VFW buffer
-			CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);			
-			CompressYUY2KeyFrame((BYTE *)lParam1->lpInput, &memFile);	
-			lActual = memFile.Tell();	
-		} else {
-			// Write to our tempory memory buffer instead
-			m_MemoryBuffer.Seek(0, 0);			
-			CompressYUY2KeyFrame((BYTE *)lParam1->lpInput, &m_MemoryBuffer);
-			lActual = m_MemoryBuffer.Tell();	
-		}			
-	} else if (lParam1->lpbiInput->biCompression == FOURCC_YV12 && lParam1->lpbiInput->biBitCount == 12) {
-		if (lParam1->lpOutput != NULL) {
-			// Write directly to the VFW buffer
-			CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);			
-			CompressYV12KeyFrame((BYTE *)lParam1->lpInput, &memFile);	
-			lActual = memFile.Tell();	
-		} else {
-			// Write to our tempory memory buffer instead
-			m_MemoryBuffer.Seek(0, 0);			
-			CompressYV12KeyFrame((BYTE *)lParam1->lpInput, &m_MemoryBuffer);
-			lActual = m_MemoryBuffer.Tell();	
-		}	
-	}
-
-	// Now put the result back	
-	lParam1->lpbiOutput->biSizeImage = lActual;
-	lParam1->dwFlags = ICCOMPRESS_KEYFRAME;
-	*lParam1->lpdwFlags = AVIIF_KEYFRAME;	
-
-	return ICERR_OK;
-};
-
-int VFWhandler::CompressDeltaFrame(ICCOMPRESS* lParam1, DWORD lParam2)
-{
-	DWORD lActual = lParam1->lpbiInput->biSizeImage;
-
-	if (lParam1->lpbiInput->biBitCount == 24) {
-		if (m_DropFrameThreshold != 0) {
-			DWORD imageDiff = abs(memcmp(m_DeltaFrame.GetBits(), lParam1->lpInput, lActual));
-			if (imageDiff < m_DropFrameThreshold) {
-				// Drop this frame
-				if (lParam2 == 1) {
-					// Multi-thread call
-					lParam1->dwFrameSize = 0;
-				} else {
-					lParam1->lpbiOutput->biSizeImage = 0;
-				}
-				lParam1->dwFlags = 0;
-				*lParam1->lpdwFlags = 0;					
-				// Increase the delta-frame count even though we drop this frame,
-				// or else we could have long time periods without keyframes
-				m_DeltaFrameCount++;
-
-				return ICERR_OK;
-			}
-		}
-		memcpy(m_Image.GetBits(), lParam1->lpInput, lActual);
-
-		// Compare to the previous frame
-		m_Image.Mix(m_DeltaFrame, CxImage::ImageOpType::OpSub2);
-
-		// Replace the delta frame with the full frame
-		memcpy(m_DeltaFrame.GetBits(), lParam1->lpInput, lActual);
-		if (m_DeltaFrameCount++ > m_DeltaFrameLimit)
-			m_DeltaFrameCount = 0;
-
-		// Actually encode the frame
-		CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
-		m_Image.Encode(&memFile);	
-		//m_Image.Draw(GetDC(NULL));
-		lActual = memFile.Tell();	
-
-	} else if (lParam1->lpbiInput->biBitCount == 32) {
-		if (m_DropFrameThreshold != 0) {
-			DWORD imageDiff = abs(memcmp(m_DeltaFrame.GetBits(), lParam1->lpInput, lActual));
-			if (imageDiff < m_DropFrameThreshold) {
-				// Drop this frame
-				if (lParam2 == 1) {
-					// Multi-thread call
-					lParam1->dwFrameSize = 0;
-				} else {
-					lParam1->lpbiOutput->biSizeImage = 0;
-				}
-				lParam1->dwFlags = 0;
-				*lParam1->lpdwFlags = 0;	
-				// Increase the delta-frame count even though we drop this frame
-				m_DeltaFrameCount++;
-
-				return ICERR_OK;
-			}
-		}
-		m_Image.CreateFromARGB(lParam1->lpbiInput->biWidth, lParam1->lpbiInput->biHeight, (BYTE *)lParam1->lpInput);
-
-		// Compare to the previous frame
-		m_Image.Mix(m_DeltaFrame, CxImage::ImageOpType::OpSub2);
-
-		// Replace the delta frame with the full frame
-		memcpy(m_DeltaFrame.GetBits(), lParam1->lpInput, lActual);
-		if (m_DeltaFrameCount++ > m_DeltaFrameLimit)
-			m_DeltaFrameCount = 0;
-
-		// Actually encode the frame
-		CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);
-		m_Image.Encode(&memFile);	
-		//m_Image.Draw(GetDC(NULL));
-		lActual = memFile.Tell();	
-
-	} else if ((lParam1->lpbiInput->biCompression == FOURCC_YUY2 || lParam1->lpbiInput->biCompression == FOURCC_YUYV)&& lParam1->lpbiInput->biBitCount == 16) {
-		// Encode a YUV2 frame
-		CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);			
-		CompressYUY2DeltaFrame((BYTE *)lParam1->lpInput, &memFile);	
-		lActual = memFile.Tell();	
-	
-	} else if (lParam1->lpbiInput->biCompression == FOURCC_YV12 && lParam1->lpbiInput->biBitCount == 12) {
-		// Encode a YUV2 frame
-		CxMemFile memFile((BYTE *)lParam1->lpOutput, m_BufferSize);			
-		CompressYV12DeltaFrame((BYTE *)lParam1->lpInput, &memFile);	
-		lActual = memFile.Tell();	
-	}	
-
-	// Now put the result back	
-	if (lParam2 == 1) {
-		// Multi-thread call
-		lParam1->dwFrameSize = lActual;
-	} else {
-		lParam1->lpbiOutput->biSizeImage = lActual;
-	}
-	lParam1->dwFlags = 0;
-	*lParam1->lpdwFlags = 0;	
-
-	return ICERR_OK;
-};
-
-int VFWhandler::CompressDeltaFrameAuto(ICCOMPRESS* lParam1, DWORD lParam2)
-{
-	void* VFW_Buffer = NULL;
-	DWORD DeltaFrameSize = -1;
-	DWORD KeyFrameSize = -1;
-	if (m_EnableMultiThreading) {				
-		memcpy(&m_threadInfo->frameData, lParam1, sizeof(ICCOMPRESS));
-		if (m_threadInfo->frameData.lFrameNum == -1)
-			m_threadInfo->frameData.lFrameNum == 0;
-		LeaveCriticalSection(&m_threadInfo->csFrameData);
-	} else {
-		if (CompressDeltaFrame(lParam1, lParam2) == ICERR_OK) {
-			DeltaFrameSize = lParam1->lpbiOutput->biSizeImage;		
-		} else {
-			return CompressKeyFrame(lParam1, lParam2);
-		}
-	}
-
-	VFW_Buffer = lParam1->lpOutput;
-	lParam1->lpOutput = NULL;
-	if (CompressKeyFrame(lParam1, lParam2) == ICERR_OK) {
-		// Restore the origanl VW buffer
-		lParam1->lpOutput = VFW_Buffer;
-		KeyFrameSize = lParam1->lpbiOutput->biSizeImage;
-		
-		if (m_EnableMultiThreading) {
-			// Ok, wait till the other thread is done compressing
-			EnterCriticalSection(&m_threadInfo->csFrameData);
-			DeltaFrameSize = m_threadInfo->DeltaFrameSize;
-			m_threadInfo->DeltaFrameSize = -1;			
-		}
-
-		if (KeyFrameSize < DeltaFrameSize) {
-			// Keyframe is smaller than a delta frame
-			// Replace the delta frame data in the VFW buffer with ours
-			memcpy(lParam1->lpOutput, m_MemoryBuffer.GetBuffer(), KeyFrameSize);
-			// Reset the delta frame count
-			m_DeltaFrameCount = 0;
-		} else {
-			// Delta frame gets better compression
-			// Restore the size (the VFW buffer already has the delta frame data)
-			lParam1->lpbiOutput->biSizeImage = DeltaFrameSize;			
-			// Set the delta frame flags
-			lParam1->dwFlags = 0;
-			*lParam1->lpdwFlags = 0;	
-		}
-	}
-
-
-	return ICERR_OK;
-};
-
 void VFWhandler::CopyImageBits(CxImage &dest, CxImage &src)
 {
 	// Do a debug check if the image formats match
@@ -763,6 +777,7 @@ int VFWhandler::VFW_compress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* ou
 	VFW_CODEC_CRASH_CATCHER_START;
 
 	if (input->biCompression == FOURCC_YUY2) {
+		m_Input_Mode = FOURCC_YUY2;
 		// Use the YUV2 encoder
 		CreateYUY2(input);
 
@@ -773,6 +788,7 @@ int VFWhandler::VFW_compress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* ou
 		V_Channel.SetCompressionFilters(m_PNGFilters);
 		V_Channel.SetCompressionLevel(m_ZlibCompressionLevel);
 	} else if (input->biCompression == FOURCC_YV12) {
+		m_Input_Mode = FOURCC_YV12;
 		// Use the YV12 encoder
 		CreateYV12(input);
 
@@ -783,12 +799,15 @@ int VFWhandler::VFW_compress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* ou
 		V_Channel.SetCompressionFilters(m_PNGFilters);
 		V_Channel.SetCompressionLevel(m_ZlibCompressionLevel);
 	} else {
+		m_Input_Mode = BI_RGB;
 		m_Image.Create(input->biWidth, input->biHeight, 24);
 		
 		m_Image.SetCompressionFilters(m_PNGFilters);
 		m_Image.SetCompressionLevel(m_ZlibCompressionLevel);
 	}
 	m_DeltaFrameCount = 0;
+	m_TotalKeyframes = 0;
+	m_TotalDeltaframes = 0;
 
 	if (m_EnableMultiThreading) {
 		m_threadInfo = new DeltaThreadInfo;
@@ -803,6 +822,9 @@ int VFWhandler::VFW_compress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* ou
 		EnterCriticalSection(&m_threadInfo->csFrameData);
 	}
 
+	if (m_EnableStatusDialog) {
+		m_hwndStatusDialog = CreateDialogParam(g_hInst, MAKEINTRESOURCE(IDD_DIALOG_STATUS), NULL, ::StatusDlgProc, (LPARAM)this);
+	}
 	//mycodec->Configure(*myconfig);	
 	return ICERR_OK;
 
@@ -825,6 +847,8 @@ int VFWhandler::VFW_compress_end(int lParam1, int lParam2)
 		LeaveCriticalSection(&m_threadInfo->csFrameData);						
 		m_threadInfo = NULL;
 	}
+	DestroyWindow(m_hwndStatusDialog);
+	m_hwndStatusDialog = NULL;
 	//mycodec.flush();
 	return ICERR_OK;
 }
@@ -1246,32 +1270,25 @@ int VFWhandler::DecompressYUY2Frame(ICDECOMPRESS* lParam1)
 		}
 
 		// Merge and Copy the decoded YUV channels into the output buffer
+		// Flipping them in the process
 		BYTE *Y_data = (BYTE *)Y_Channel.GetBits();
 		BYTE *U_data = (BYTE *)U_Channel.GetBits();
 		BYTE *V_data = (BYTE *)V_Channel.GetBits();
-		BYTE *outputYUV2Data = (BYTE *)m_DecodeBuffer.GetBuffer();
-		
-		//memset(lParam1->lpOutput, 0, lParam1->lpbiOutput->biSizeImage);
-		
-		for (DWORD height = 0; height < Y_Channel.GetHeight()*2; height++) {
-			for (DWORD width = 0; width < Y_Channel.GetWidth(); width += 4) {
+		BYTE *outputYUV2Data = (BYTE *)m_DecodeBuffer.GetBuffer() + ((Y_Channel.GetHeight()-1) * Y_Channel.GetWidth() * 2);
+						
+		for (DWORD height = 0; height < Y_Channel.GetHeight(); height++) {
+			for (DWORD width = 0; width < Y_Channel.GetWidth()*2; width += 4) {
 				outputYUV2Data[width+0] = Y_data++[0];
 				outputYUV2Data[width+1] = U_data++[0];
 				outputYUV2Data[width+2] = Y_data++[0];
 				outputYUV2Data[width+3] = V_data++[0];
+				//outputYUV2Data -= 4;
 			}
-			outputYUV2Data += width;
+			outputYUV2Data -= width;
 		}		
 
-		// Using alexnoe's YUV2->RGB24 Assembly rountines
-		int stride = lParam1->lpbiOutput->biWidth * 2;				
-		YUV422toRGB24_MMX(m_DecodeBuffer.GetBuffer(), lParam1->lpOutput, 0, lParam1->lpbiOutput->biWidth, lParam1->lpbiOutput->biHeight, stride, lParam1->lpbiOutput->biWidth * 3);
-		
-		/*CxImage test(m_Image, true);
-		test.CreateFromARGB(lParam1->lpbiOutput->biWidth, lParam1->lpbiOutput->biHeight, (BYTE *)lParam1->lpOutput);
-
-		memcpy(lParam1->lpOutput, test.GetBits(), lParam1->lpbiOutput->biSizeImage);
-*/
+		// Using alexnoe's YUV2->RGB24 Assembly rountine
+		YUV422toRGB24_MMX(m_DecodeBuffer.GetBuffer(), lParam1->lpOutput, 0, lParam1->lpbiOutput->biWidth, lParam1->lpbiOutput->biHeight, lParam1->lpbiOutput->biWidth * 2, lParam1->lpbiOutput->biWidth * 3);
 	} else {
 		return ICERR_UNSUPPORTED;
 	}
@@ -1467,18 +1484,31 @@ int VFWhandler::DecompressYV12Frame(ICDECOMPRESS* lParam1)
 			V_Channel_Delta = V_Channel;
 		}
 
-		// Call Klaus Post's mmx YV12->YUY2 conversion routine
-		mmx_yv12_to_yuy2(
-			Y_Channel.GetBits(),
-			V_Channel.GetBits(), 
-			U_Channel.GetBits(), 
-			Y_Channel.GetWidth(), // rowsize
-			Y_Channel.GetWidth(), // pitch
-			Y_Channel.GetWidth()/2, // pitch_uv
-			(BYTE *)lParam1->lpOutput, 
-			Y_Channel.GetWidth()*2, // dst_pitch
-			Y_Channel.GetHeight());
-
+		if (m_cpu.DoesCPUSupportFeature(HAS_SSEMMX)) {
+			// Call Klaus Post's isse (Integer SSE) YV12->YUY2 conversion routine
+			isse_yv12_to_yuy2(
+				Y_Channel.GetBits(),
+				V_Channel.GetBits(), 
+				U_Channel.GetBits(), 
+				Y_Channel.GetWidth(), // rowsize
+				Y_Channel.GetWidth(), // pitch
+				Y_Channel.GetWidth()/2, // pitch_uv
+				(BYTE *)lParam1->lpOutput, 
+				Y_Channel.GetWidth()*2, // dst_pitch
+				Y_Channel.GetHeight());
+		} else {
+			// Call Klaus Post's mmx YV12->YUY2 conversion routine
+			mmx_yv12_to_yuy2(
+				Y_Channel.GetBits(),
+				V_Channel.GetBits(), 
+				U_Channel.GetBits(), 
+				Y_Channel.GetWidth(), // rowsize
+				Y_Channel.GetWidth(), // pitch
+				Y_Channel.GetWidth()/2, // pitch_uv
+				(BYTE *)lParam1->lpOutput, 
+				Y_Channel.GetWidth()*2, // dst_pitch
+				Y_Channel.GetHeight());
+		}
 	} else if (m_Output_Mode == PNGOutputMode_RGB24) {
 		// Double-check the output fourcc
 		assert(lParam1->lpbiOutput->biCompression == BI_RGB);
@@ -1537,11 +1567,46 @@ int VFWhandler::DecompressYV12Frame(ICDECOMPRESS* lParam1)
 		//Y_Channel.Save("D:\\Y_orig_yv12.png", CXIMAGE_FORMAT_PNG);
 		//U_Channel.Save("D:\\U_orig_yv12.png", CXIMAGE_FORMAT_PNG);
 		//V_Channel.Save("D:\\V_orig_yv12.png", CXIMAGE_FORMAT_PNG);
-		CxImage notSupported(Y_Channel);
-		notSupported.Flip();
-		notSupported.IncreaseBpp(24);		
-		memcpy(lParam1->lpOutput, notSupported.GetBits(), notSupported.GetSizeImage());
-		//YV12toRGB24_Resample(Y_Channel, U_Channel, V_Channel, (BYTE *)lParam1->lpOutput, 3);
+		
+		if (m_cpu.DoesCPUSupportFeature(HAS_SSEMMX)) {
+			// Call Klaus Post's isse (Integer SSE) YV12->YUY2 conversion routine
+			isse_yv12_to_yuy2(
+				Y_Channel.GetBits(),
+				V_Channel.GetBits(), 
+				U_Channel.GetBits(), 
+				Y_Channel.GetWidth(), // rowsize
+				Y_Channel.GetWidth(), // pitch
+				Y_Channel.GetWidth()/2, // pitch_uv
+				(BYTE *)lParam1->lpOutput, 
+				Y_Channel.GetWidth()*2, // dst_pitch
+				Y_Channel.GetHeight());
+		} else {
+			// Call Klaus Post's mmx YV12->YUY2 conversion routine
+			mmx_yv12_to_yuy2(
+				Y_Channel.GetBits(),
+				V_Channel.GetBits(), 
+				U_Channel.GetBits(), 
+				Y_Channel.GetWidth(), // rowsize
+				Y_Channel.GetWidth(), // pitch
+				Y_Channel.GetWidth()/2, // pitch_uv
+				(BYTE *)lParam1->lpOutput, 
+				Y_Channel.GetWidth()*2, // dst_pitch
+				Y_Channel.GetHeight());
+		}
+
+		// Using alexnoe's YUV2->RGB24 Assembly rountine
+		YUV422toRGB24_MMX(lParam1->lpOutput, m_DecodeBuffer.GetBuffer(), 0, lParam1->lpbiOutput->biWidth, lParam1->lpbiOutput->biHeight, lParam1->lpbiOutput->biWidth * 2, lParam1->lpbiOutput->biWidth * 3);		
+		
+		// Flip the image
+		DWORD dwEffWidth = lParam1->lpbiOutput->biWidth * 3;
+		BYTE *iSrc = (BYTE *)m_DecodeBuffer.GetBuffer() + ((lParam1->lpbiOutput->biHeight-1)*dwEffWidth);
+		BYTE *iDst = (BYTE *)lParam1->lpOutput;
+		for (DWORD y = 0; y < lParam1->lpbiOutput->biHeight; y++) {
+			memcpy(iDst, iSrc, dwEffWidth);
+			iSrc -= dwEffWidth;
+			iDst += dwEffWidth;
+		}		
+		
 	} else {
 		return ICERR_UNSUPPORTED;
 	}
@@ -1733,7 +1798,7 @@ int VFWhandler::VFW_decompress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* 
 			m_Output_Mode = PNGOutputMode_RGB24;
 			// Prep our temporay decode buffer
 			m_DecodeBuffer.Open();
-			m_DecodeBuffer.Seek(abs(output->biHeight) * output->biWidth * (16 / 8), 0);
+			m_DecodeBuffer.Seek(abs(output->biHeight) * output->biWidth * 3, 0);
 			m_DecodeBuffer.Write(" ", 1, 1);
 			m_DecodeBuffer.Seek(0, 0);
 		} else if (output->biCompression == FOURCC_YVYU) {
@@ -1752,7 +1817,12 @@ int VFWhandler::VFW_decompress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* 
 			m_Output_Mode = PNGOutputMode_None;
 		} else if (output->biCompression == BI_RGB && output->biBitCount == 24) {
 			// Final output needs to be in RGB24
-			m_Output_Mode = PNGOutputMode_RGB24;			
+			m_Output_Mode = PNGOutputMode_RGB24;	
+			// Prep our temporay decode buffer
+			m_DecodeBuffer.Open();
+			m_DecodeBuffer.Seek(abs(output->biHeight) * output->biWidth * 3, 0);
+			m_DecodeBuffer.Write(" ", 1, 1);
+			m_DecodeBuffer.Seek(0, 0);
 		} else if (output->biCompression == FOURCC_IYUV && output->biBitCount == 12) {
 			// Final output needs the U and V planes swapped from YV12
 			m_Output_Mode = PNGOutputMode_IYUV;			
@@ -1761,7 +1831,7 @@ int VFWhandler::VFW_decompress_begin(BITMAPINFOHEADER* input, BITMAPINFOHEADER* 
 			m_Output_Mode = PNGOutputMode_YUY2;					
 			// Prep our temporay decode buffer
 			m_DecodeBuffer.Open();
-			m_DecodeBuffer.Seek(abs(output->biHeight) * output->biWidth * 2, 0);
+			m_DecodeBuffer.Seek(abs(output->biHeight) * output->biWidth * 3, 0);
 			m_DecodeBuffer.Write(" ", 1, 1);
 			m_DecodeBuffer.Seek(0, 0);			
 		} else {
@@ -1946,11 +2016,12 @@ BOOL VFWhandler::AboutDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 				"\r\n" "\r\n"
 
 				"Compile Timestamp: " __DATE__ " " __TIME__ "\r\n" "\r\n"
-				"YUV2->RGB32 ASM Routines by alexnoe" "\r\n"
+				"YUV2->RGB24/32 ASM Routines by alexnoe" "\r\n"
+				"RGB->YUY2, YUV2->YV12, YV12->YUY2 ASM Routines by Klaus Post" "\r\n"
 				"A modifed version of CxImage 5.71" "\r\n"
 			  "LibPNG 1.2.4" "\r\n"
 				"zlib 1.1.4" "\r\n" "\r\n" 
-				"And once again, thanks to Pamel for suggesting the impossible ;)" "\r\n"
+				"And once again, thanks to Pamel for suggesting the impossible ;)"
 			);
 			SetFocus(GetDlgItem(hwndDlg, IDC_BUTTON_ABOUT_OK));
 			break;
@@ -2031,6 +2102,7 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 			RECT dialogImage = { 0, 0, 350, 100 };
 			InvalidateRect(hwndDlg, &dialogImage, true);
 
+			CheckDlgButton(hwndDlg, IDC_CHECK_ENABLE_STATUS_DIALOG, m_EnableStatusDialog);
 			CheckDlgButton(hwndDlg, IDC_CHECK_CRASH_CATCHER, CorePNG_GetRegistryValue("Crash Catcher Enabled", 0));
 			CheckDlgButton(hwndDlg, IDC_CHECK_DECODE_RGB24, m_DecodeToRGB24);
 			CheckDlgButton(hwndDlg, IDC_CHECK_DELTA_FRAMES, m_DeltaFramesEnabled);
@@ -2073,6 +2145,7 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 			AddTooltip(hwndToolTip, GetDlgItem(hwndDlg,	IDC_COMBO_COMPRESSION_LEVEL), "Set your compression level here.");
 			AddTooltip(hwndToolTip, GetDlgItem(hwndDlg,	IDC_CHECK_DECODE_RGB24), "Output 32-bit RGB as 24-bit RGB, striping the Alpha channel.");
 			AddTooltip(hwndToolTip, GetDlgItem(hwndDlg,	IDC_CHECK_CRASH_CATCHER), "Enable crash catcher. Use this to send me bug reports that are directly related to CorePNG. It is disabled by default because it can/will catch other program crashes too. This may need a program restart to take effect.");
+			AddTooltip(hwndToolTip, GetDlgItem(hwndDlg,	IDC_CHECK_ENABLE_STATUS_DIALOG), "Enable Status dialog while encoding. Display infomation like, the colorspace, number of keyframes and deltaframes encoded.");
 			
 			break;
 		}		
@@ -2121,6 +2194,7 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
 					m_DeltaFrameAuto = IsDlgButtonChecked(hwndDlg, IDC_CHECK_AUTO_DELTA_FRAMES);
 					m_DropFrameThreshold = SendDlgItemMessage(hwndDlg,	IDC_SPIN_DROP_THRESHOLD, UDM_GETPOS, 0, 0);
 					m_DeltaFrameLimit = SendDlgItemMessage(hwndDlg,	IDC_SPIN_KEYFRAME_INTERVAL, UDM_GETPOS, 0, 0)-1;
+					m_EnableStatusDialog = IsDlgButtonChecked(hwndDlg, IDC_CHECK_ENABLE_STATUS_DIALOG);
 					
 					CorePNG_SetRegistryValue("Crash Catcher Enabled", IsDlgButtonChecked(hwndDlg, IDC_CHECK_CRASH_CATCHER));
 
@@ -2162,6 +2236,145 @@ BOOL VFWhandler::ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARA
   return FALSE;
 }
 
+BOOL VFWhandler::StatusDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	static HWND hwndToolTip = NULL;
+  switch (uMsg)
+  {
+		case WM_INITDIALOG:
+		{
+			INITCOMMONCONTROLSEX common;			
+			common.dwICC = ICC_WIN95_CLASSES; 
+			common.dwSize = sizeof(common);
+			InitCommonControlsEx(&common);
+
+			// Create the tooltip control
+			DWORD balloonTips = 0;
+			if (CorePNG_GetRegistryValue("Use Balloon Tooltips", 1))
+				balloonTips = TTS_BALLOON;
+
+			hwndToolTip = CreateWindowEx(WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP | balloonTips,
+							CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+							hwndDlg, NULL, g_hInst, NULL);
+	
+			// Have it cover the whole window
+			SetWindowPos(hwndToolTip, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
+			// Set our own delays
+			SendMessage(hwndToolTip, TTM_SETDELAYTIME, (WPARAM)(DWORD)TTDT_INITIAL, (LPARAM)50);
+			SendMessage(hwndToolTip, TTM_SETDELAYTIME, (WPARAM)(DWORD)TTDT_AUTOPOP, (LPARAM)30*1000);
+			SendMessage(hwndToolTip, TTM_SETMAXTIPWIDTH, 0, (LPARAM)160);			
+
+			if (!myLogo.IsValid()) {
+				HRSRC hres = FindResource(g_hInst, MAKEINTRESOURCE(IDR_PNG_LOGO), "PNG");
+				HGLOBAL hgImage = LoadResource(g_hInst, hres);
+				myLogo.Decode((BYTE *)LockResource(hgImage), SizeofResource(g_hInst, hres), CXIMAGE_FORMAT_PNG);
+#ifdef _DEBUG
+				RGBQUAD blackColor = {0, 0, 0, 0};
+				myLogo.DrawTextOnImage(GetDC(hwndDlg), 244, 20, "Debug Build", blackColor, "Arial", 18, 10000);
+#endif
+			}
+			// Increase the 'reference count'
+			myLogo.SetFlags(myLogo.GetFlags() + 1);
+			RECT dialogImage = { 0, 0, 350, 100 };
+			InvalidateRect(hwndDlg, &dialogImage, true);
+
+			std::string encodingMode = "Encoding Colorspace: ";
+			if (m_Input_Mode == BI_RGB) {				
+				encodingMode += "RGB";
+			} else if (m_Input_Mode == FOURCC_YUY2) {				
+				encodingMode += "YUY2";
+			} else if (m_Input_Mode == FOURCC_YV12) {				
+				encodingMode += "YV12";
+			} else {				
+				encodingMode += "Error";
+			}
+			SetDlgItemText(hwndDlg, IDC_STATIC_ENCODING_MODE, encodingMode.c_str());
+			//AddTooltip(hwndToolTip, GetDlgItem(hwndDlg,	IDC_SPIN_KEYFRAME_INTERVAL), "Max number of delta-frames to encode in a row.");
+
+			// Check for Win2000
+			OSVERSIONINFO osVersion;
+			osVersion.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+			GetVersionEx(&osVersion);
+			if (osVersion.dwMajorVersion >= 5) {
+				SendDlgItemMessage(hwndDlg, IDC_SLIDER_TRANSPARENT, TBM_SETRANGE, (WPARAM)TRUE, (LPARAM) MAKELONG(10, 100));
+				SendDlgItemMessage(hwndDlg, IDC_SLIDER_TRANSPARENT, TBM_SETPOS, TRUE, CorePNG_GetRegistryValue("Status Dialog Transparency", 100));
+
+				StatusDlgProc(hwndDlg, WM_HSCROLL, 0, (LPARAM)GetDlgItem(hwndDlg, IDC_SLIDER_TRANSPARENT));
+			} else {
+				ShowWindow(GetDlgItem(hwndDlg, IDC_STATIC_TRANSPARENT), SW_HIDE);
+				ShowWindow(GetDlgItem(hwndDlg, IDC_SLIDER_TRANSPARENT), SW_HIDE);
+			}
+			SetTimer(hwndDlg, 555, 500, NULL);
+			break;
+		}		
+		case WM_PAINT:
+		{			
+			PAINTSTRUCT structPaint;
+			BeginPaint(hwndDlg, &structPaint);
+			myLogo.Draw(structPaint.hdc);		
+			EndPaint(hwndDlg, &structPaint);
+			break;
+		}
+		case WM_DESTROY:
+		{			
+			myLogo.SetFlags(myLogo.GetFlags() - 1);
+			if (myLogo.GetFlags() == 0)
+				myLogo.Destroy();
+
+			KillTimer(hwndDlg, 555);
+			break;
+		}
+		case WM_HSCROLL:
+		{
+			BYTE bPos = SendMessage((HWND)lParam, TBM_GETPOS, 0, 0);
+			CorePNG_SetRegistryValue("Status Dialog Transparency", bPos);
+			if ((bPos == 100) && !(GetWindowLong(hwndDlg, GWL_EXSTYLE) & GWL_EXSTYLE)) {
+				// Remove WS_EX_LAYERED from this window styles
+				SetWindowLong(hwndDlg, GWL_EXSTYLE, GetWindowLong(hwndDlg, GWL_EXSTYLE) & ~WS_EX_LAYERED);
+				// Ask the window and its children to repaint
+				RedrawWindow(hwndDlg, NULL, NULL, RDW_ERASE | RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
+			} else {
+				if (GetWindowLong(hwndDlg, GWL_EXSTYLE) & GWL_EXSTYLE) {
+					// Set WS_EX_LAYERED on this window 
+					SetWindowLong(hwndDlg, GWL_EXSTYLE, GetWindowLong(hwndDlg, GWL_EXSTYLE) | WS_EX_LAYERED);
+				}
+				SetLayeredWindowAttributes(hwndDlg, 0, (255 * bPos) / 100, LWA_ALPHA);
+			}
+			
+			break;
+		}
+		case WM_TIMER:
+		{
+			if (wParam == 555) {
+				std::string txt_bufferStr;
+				char txt_buffer[1025];
+				wsprintf(txt_buffer, " Keyframes:\t %i \n Delta-frames:\t %i", m_TotalKeyframes, m_TotalDeltaframes);
+				txt_bufferStr = txt_buffer;
+				GetDlgItemText(hwndDlg, IDC_STATIC_STATUS_FRAMES, txt_buffer, 1024);
+				if (txt_bufferStr.compare(txt_buffer)) {				
+					SetDlgItemText(hwndDlg, IDC_STATIC_STATUS_FRAMES, txt_bufferStr.c_str());
+				}
+			}
+			break;
+		}
+		case WM_COMMAND:
+			// Process button
+			switch (LOWORD(wParam))
+			{
+				
+				case IDC_BUTTON_DISPLAY_ABOUT:
+					this->VFW_about(hwndDlg);
+					break;
+			}
+			break;
+		default:
+			break;
+			//Nothing for now
+	}
+  return FALSE;
+}
+
 BOOL CALLBACK ConfigurationDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	VFWhandler *vfwData = (VFWhandler *)GetWindowLong(hwndDlg, DWL_USER);	
@@ -2186,6 +2399,20 @@ BOOL CALLBACK AboutDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 	}
 	if (vfwData != NULL) {
 		return vfwData->AboutDlgProc(hwndDlg, uMsg, wParam, lParam);
+	}
+	return FALSE;
+};
+
+BOOL CALLBACK StatusDlgProc(HWND hwndDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	VFWhandler *vfwData = (VFWhandler *)GetWindowLong(hwndDlg, DWL_USER);	
+  if (uMsg == WM_INITDIALOG) {
+		// Store the VFWhandler
+		vfwData = (VFWhandler *)lParam;
+		SetWindowLong(hwndDlg, DWL_USER, (LONG)vfwData);
+	}
+	if (vfwData != NULL) {
+		return vfwData->StatusDlgProc(hwndDlg, uMsg, wParam, lParam);
 	}
 	return FALSE;
 };

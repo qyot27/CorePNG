@@ -4,6 +4,7 @@
 //
 #define IDR_PNG_LOGO                    102
 #define IDD_DIALOG_ABOUT                102
+#define IDD_DIALOG_STATUS               103
 #define IDD_PROPPAGE_CONFIG             106
 #define IDD_DIALOG_CRASH                148
 #define IDC_BUTTON_OK                   1009
@@ -28,7 +29,11 @@
 #define IDC_BUTTON_DISPLAY_ABOUT        1030
 #define IDC_EDIT_CRASH_REPORT           1031
 #define IDC_CHECK_CRASH_CATCHER         1031
-#define IDC_TAB1                        1032
+#define IDC_SLIDER_TRANSPARENT          1034
+#define IDC_STATIC_ENCODING_MODE        1035
+#define IDC_CHECK_ENABLE_STATUS_DIALOG  1036
+#define IDC_STATIC_STATUS_FRAMES        1037
+#define IDC_STATIC_TRANSPARENT          1038
 #define IDC_BUTTON_SAVE_DUMP            1120
 #define IDC_STATIC_CRASH_TITLE          1121
 #define IDC_EDIT_CRASH_USER_TEXT        1123
@@ -37,9 +42,9 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        103
+#define _APS_NEXT_RESOURCE_VALUE        104
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1034
+#define _APS_NEXT_CONTROL_VALUE         1039
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

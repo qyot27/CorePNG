@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------------------
 // CorePNG VFW Codec
-// http://corecodec.org/projects/coreflac
+// http://corecodec.org/projects/corepng
 //
 // Copyright (C) 2003 Jory Stone
 // based on WARP VFW interface by General Lee D. Mented (gldm@mail.com)

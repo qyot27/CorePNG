@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------------------
 // CorePNG
-// http://corecodec.org/projects/coreflac
+// http://corecodec.org/projects/corepng
 //
 // Copyright (C) 2003 Jory Stone
 //
