@@ -95,10 +95,10 @@
 			<Tool
 				Name="VCLinkerTool"
 				RegisterOutput="TRUE"
-				AdditionalDependencies="quartz.lib strmiids.lib strmbase.lib libFLAC_static.lib"
+				AdditionalDependencies="quartz.lib strmiids.lib strmbase.lib ..\CxImage\bin\cximagecrt_fast_.lib"
 				OutputFile="$(OutDir)/CorePNG.dll"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="..\libflac\obj\release\lib"
+				AdditionalLibraryDirectories=""
 				ModuleDefinitionFile=".\CorePNG.def"
 				GenerateDebugInformation="TRUE"
 				SubSystem="2"

@@ -273,7 +273,7 @@ HRESULT CCorePNGEncoderFilter::Transform(IMediaSample *pIn, IMediaSample *pOut) 
 	pIn->GetPointer(&pBuffer);	
 
 	CopyMemory(m_Image.GetBits(), pBuffer, lActual);
-	memfile.Seek(0, 0);
+	memfile.Seek(0, 0);	
 	m_Image.Encode(&memfile, CXIMAGE_FORMAT_PNG);	
 	//m_Image.Draw(GetDC(NULL));
 
@@ -368,6 +368,9 @@ HRESULT CCorePNGDecoderFilter::CheckInputType(const CMediaType *mtIn) {
 
 HRESULT CCorePNGDecoderFilter::CheckTransform(const CMediaType *mtIn, const CMediaType *mtOut) {
 	HRESULT hr = CheckInputType(mtIn);
+
+	if (mtOut->majortype != MEDIATYPE_Video || mtOut->subtype != MEDIASUBTYPE_RGB24)
+		return S_FALSE;
 
 	if(hr == S_FALSE) {
 		return hr;
